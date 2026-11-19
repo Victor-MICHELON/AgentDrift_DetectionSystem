@@ -3,9 +3,17 @@
 
 agentdrift:
   source: https://github.com/Asif-0209/AgentDrift
+  commit: 014a514fa998b4ac4519579fceb8a5884b379bda
   license: CC-BY-4.0
   raw_dir: data/raw/agentdrift
-  sha256: null
+  split_dir: data_taskdisjoint   # base split (JOURNAL 19/11/2026); data/ = stratified split of the paper
+  sha256:
+    data_taskdisjoint/train.jsonl: 74ebd2a081a97e4a986b2456e33b1840e954f5e945c184825ef0b87a07715435
+    data_taskdisjoint/val.jsonl: 50fcc3b3b2f03843b1289ba6518a1f2789c3ca4e6a1dc4687869f5e980c43c14
+    data_taskdisjoint/test.jsonl: df1c15dd6f25f52d66d2cd19852326b78fd8d6dbf9f6f2c71da913761132a6c9
+    data/train.jsonl: 7ba9c1b2b5364d46dd7b6496370ef8ce338112b3de61f025cacb8988031d0535
+    data/val.jsonl: 947e8d28857b3925a05522eef87032f529c1891219ecc8bcf4a1bb37084cc94a
+    data/test.jsonl: 29171469b6f45c54aa096e0a0961a1aac70268289f2016de4614fe885ebfa5d0
 
 atbench:
   source: https://huggingface.co/datasets/AI45Research/ATBench

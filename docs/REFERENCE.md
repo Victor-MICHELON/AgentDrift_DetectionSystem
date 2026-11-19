@@ -9,7 +9,10 @@
 - Zhan, Q. et al. (2024). *InjecAgent: Benchmarking Indirect Prompt Injections in Tool-Integrated LLM Agents.* Findings of ACL 2024.
 - OWASP (2025). *Top 10 for LLM Applications* — LLM01: Prompt Injection.
 - Article de la compétition de red teaming d'agents (≈ 100 % de succès d'attaque, cité dans la synthèse) — **[À CONFIRMER]**.
-- AgentDrift (dépôt GitHub Asif-0209/AgentDrift) et ATBench (AI45Research) — article associé **[À CONFIRMER]**.
+- Pinjari, A., Saint-Germain, M. P. (2026). *AgentDrift: A Step-Labeled Benchmark of Injection-Hijacked LLM Agent Trajectories.* arXiv:2609.06972. DOI 10.48550/arXiv.2609.06972. Jeu principal (dépôt Asif-0209/AgentDrift, CC BY 4.0). Baseline de surface (régression logistique, 6 variables, split stratifié) : F1 0,647, rappel complètes / partielles / retardées 0,880 / 0,082 / 0,231.
+- Pinjari, A., Saint-Germain, M. P. (2026). *DriftNet: A Dual-Head Trajectory Transformer for Detecting and Localizing Prompt Injection in LLM Agents.* arXiv:2609.10892. DOI 10.48550/arXiv.2609.10892. **Référence état de l'art sur AgentDrift** (split task-disjoint) : F1 0,983 ; rappel complètes / partielles / retardées 0,998 / 0,986 / 0,932. Lecture bidirectionnelle de toute la trajectoire, `obs` et `thought` inclus, monde non anonymisé. **Chiffres lus via un résumé automatique : à vérifier sur le PDF avant citation.**
+- Gebru, T. et al. (2021). *Datasheets for Datasets.* Communications of the ACM (format du DATASHEET d'AgentDrift).
+- ATBench (AI45Research, Hugging Face) — article associé **[À CONFIRMER]**.
 
 ## Méthodes
 - He, P. et al. (2021). *DeBERTa: Decoding-enhanced BERT with Disentangled Attention.* ICLR 2021.
