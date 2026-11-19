@@ -1,0 +1,13 @@
+# Evaluation protocol (CONTEXT.md section 8.1).
+seed: 42
+group_key: null        # task template column, set after the schema audit
+domain_key: null       # domain column, set after the schema audit
+fixed_test: true       # keep the dataset's 35-task test set untouched
+outer_folds: 5         # StratifiedGroupKFold by task template
+inner_folds: 3         # nested CV for tuning and calibration
+leave_one_domain_out: true
+target_fpr_per_step: [0.01, 0.002]
+bootstrap:
+  n_resamples: 2000
+  unit: task           # cluster bootstrap: resample tasks, never steps
+  ci: 0.95

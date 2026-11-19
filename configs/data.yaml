@@ -1,0 +1,20 @@
+# Data sources. Paths are relative to the repository root.
+# Checksums are filled after the first download (data/README.md).
+
+agentdrift:
+  source: https://github.com/Asif-0209/AgentDrift
+  license: CC-BY-4.0
+  raw_dir: data/raw/agentdrift
+  sha256: null
+
+atbench:
+  source: https://huggingface.co/datasets/AI45Research/ATBench
+  license: Apache-2.0
+  raw_dir: data/external/atbench
+  sha256: null
+
+agentdojo:
+  source: https://github.com/ethz-spylab/agentdojo
+  license: null  # to verify
+  raw_dir: data/external/agentdojo
+  sha256: null
