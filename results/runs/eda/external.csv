@@ -1,0 +1,6 @@
+,AgentDrift,AgentDrift,AgentDrift,ATBench,ATBench,ATBench
+,mean,50%,max,mean,50%,max
+steps / actions per trajectory,5.7,6.0,11.0,4.5,4.0,31.0
+tools available per trajectory,20.6,20.0,23.0,3.2,3.0,21.0
+task length (chars),201.2,182.0,643.0,263.1,248.0,700.0
+"observation length (chars, median per trajectory)",79.2,75.0,297.0,2108.2,685.0,51719.0

@@ -1,0 +1,800 @@
+{
+  "run": {
+    "date": "2026-11-20T11:54:27+00:00",
+    "seed": 42,
+    "git": "75f7007-dirty"
+  },
+  "overview": {
+    "n_trajectories": 12536,
+    "n_steps": 71024,
+    "n_domains": 5,
+    "n_templates": 250,
+    "n_tools": 103,
+    "n_worlds": 1141,
+    "steps_per_traj_mean": 5.67,
+    "steps_per_traj_min": 3,
+    "steps_per_traj_max": 11
+  },
+  "duplicates": {
+    "duplicate_trajectories (task + all steps)": 0,
+    "duplicate_steps (thought, tool, args, obs)": 2458,
+    "duplicate_observations": 12539,
+    "distinct_observations": 58485
+  },
+  "addresses_with_space": {
+    "distinct_world_addresses": 5213,
+    "with_space": 25,
+    "rows": 263
+  },
+  "tools_summary": {
+    "n_tools": 103,
+    "tools_seen_in_H": 102,
+    "tools_only_in_H": 0,
+    "tools_per_domain": {
+      "banking": 20,
+      "coding": 23,
+      "email": 20,
+      "medical": 20,
+      "web": 20
+    },
+    "tools_used_in_two_domains_or_more": 0
+  },
+  "silhouettes": {
+    "silhouette_by_label": 0.128,
+    "silhouette_by_domain": 0.123,
+    "n_points": 2400
+  },
+  "test_dev_max_similarity": {
+    "max": 0.8187396768758299,
+    "n_above_0.9": 0
+  },
+  "prevalence_split": {
+    "columns": [
+      "trajectories",
+      "y_traj",
+      "steps",
+      "y_scan",
+      "y_gate",
+      "first_h"
+    ],
+    "index": [
+      "train",
+      "val",
+      "test",
+      "all"
+    ],
+    "data": [
+      [
+        9081,
+        0.4413610836,
+        51507,
+        0.0989574233,
+        0.173704545,
+        4008
+      ],
+      [
+        1733,
+        0.4345066359,
+        9721,
+        0.097315091,
+        0.1694270137,
+        753
+      ],
+      [
+        1722,
+        0.450058072,
+        9796,
+        0.1013679053,
+        0.179154757,
+        775
+      ],
+      [
+        12536,
+        0.4416081685,
+        71024,
+        0.0990651048,
+        0.1738708042,
+        5536
+      ]
+    ]
+  },
+  "prevalence_domain": {
+    "columns": [
+      "trajectories",
+      "y_traj",
+      "steps",
+      "y_scan",
+      "y_gate",
+      "first_h"
+    ],
+    "index": [
+      "banking",
+      "coding",
+      "email",
+      "medical",
+      "web",
+      "all"
+    ],
+    "data": [
+      [
+        2136,
+        0.3445692884,
+        11634,
+        0.0890493381,
+        0.1005673027,
+        736
+      ],
+      [
+        2600,
+        0.4615384615,
+        14817,
+        0.1012350678,
+        0.189512047,
+        1200
+      ],
+      [
+        2600,
+        0.4615384615,
+        14986,
+        0.1000934205,
+        0.1909782464,
+        1200
+      ],
+      [
+        2600,
+        0.4615384615,
+        14795,
+        0.1013856032,
+        0.1864143292,
+        1200
+      ],
+      [
+        2600,
+        0.4615384615,
+        14792,
+        0.1014061655,
+        0.1859789075,
+        1200
+      ],
+      [
+        12536,
+        0.4416081685,
+        71024,
+        0.0990651048,
+        0.1738708042,
+        5536
+      ]
+    ]
+  },
+  "gap": {
+    "columns": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "index": [
+      "attacked_full",
+      "attacked_partial",
+      "attacked_delayed"
+    ],
+    "data": [
+      [
+        3136,
+        0,
+        0,
+        0
+      ],
+      [
+        1500,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        837,
+        60,
+        3
+      ]
+    ]
+  },
+  "injection_position": {
+    "columns": [
+      1,
+      2,
+      3
+    ],
+    "index": [
+      "failed_attack",
+      "attacked_full",
+      "attacked_partial",
+      "attacked_delayed"
+    ],
+    "data": [
+      [
+        1493,
+        5,
+        2
+      ],
+      [
+        163,
+        2850,
+        123
+      ],
+      [
+        1497,
+        2,
+        1
+      ],
+      [
+        900,
+        0,
+        0
+      ]
+    ]
+  },
+  "out_of_expected": {
+    "columns": [
+      "share",
+      "n"
+    ],
+    "index": [
+      "B",
+      "F",
+      "H delayed",
+      "H full",
+      "H partial",
+      "I"
+    ],
+    "data": [
+      [
+        0.3129804992,
+        51639
+      ],
+      [
+        0.4046666667,
+        1500
+      ],
+      [
+        0.8111111111,
+        900
+      ],
+      [
+        0.691337606,
+        9674
+      ],
+      [
+        0.4022535211,
+        1775
+      ],
+      [
+        0.4779624277,
+        5536
+      ]
+    ]
+  },
+  "visibility": {
+    "columns": [
+      "category prefix",
+      "instruction vocabulary",
+      "external address or URL",
+      "any of the three",
+      "n"
+    ],
+    "index": [
+      "attacked_full",
+      "attacked_partial",
+      "attacked_delayed",
+      "failed_attack"
+    ],
+    "data": [
+      [
+        0.6450892857,
+        0.9977678571,
+        0.990752551,
+        1.0,
+        3136
+      ],
+      [
+        0.618,
+        0.35,
+        0.124,
+        0.6526666667,
+        1500
+      ],
+      [
+        0.3844444444,
+        0.1011111111,
+        0.1522222222,
+        0.4555555556,
+        900
+      ],
+      [
+        0.9833333333,
+        0.826,
+        0.9673333333,
+        0.9993333333,
+        1500
+      ]
+    ]
+  },
+  "provenance": {
+    "columns": [
+      "unknown address",
+      "external domain",
+      "unknown same-domain address",
+      "arg from previous obs",
+      "amount in args",
+      "n"
+    ],
+    "index": [
+      "B",
+      "I",
+      "F",
+      "H full",
+      "H partial",
+      "H delayed"
+    ],
+    "data": [
+      [
+        0.0450241097,
+        0.0224442766,
+        0.0319332288,
+        0.1892174519,
+        0.0207207731,
+        51639
+      ],
+      [
+        0.011199422,
+        0.0063222543,
+        0.0083092486,
+        0.1524566474,
+        0.0090317919,
+        5536
+      ],
+      [
+        0.008,
+        0.008,
+        0.0033333333,
+        0.144,
+        0.016,
+        1500
+      ],
+      [
+        0.4352904693,
+        0.4285714286,
+        0.0138515609,
+        0.4551374819,
+        0.01447178,
+        9674
+      ],
+      [
+        0.0861971831,
+        0.0433802817,
+        0.0507042254,
+        0.5802816901,
+        0.0185915493,
+        1775
+      ],
+      [
+        0.2211111111,
+        0.1466666667,
+        0.0888888889,
+        0.29,
+        0.0133333333,
+        900
+      ]
+    ]
+  },
+  "world_purity_by_domain": {
+    "columns": [
+      "worlds",
+      "weighted_majority_share",
+      "share_traj_in_pure_worlds"
+    ],
+    "index": [
+      "banking",
+      "coding",
+      "email",
+      "medical",
+      "web"
+    ],
+    "data": [
+      [
+        287,
+        0.9576639341,
+        0.9157303371
+      ],
+      [
+        271,
+        0.9241923869,
+        0.8226923077
+      ],
+      [
+        47,
+        0.3227442716,
+        0.0
+      ],
+      [
+        293,
+        0.9876923077,
+        0.9719230769
+      ],
+      [
+        271,
+        0.9120748171,
+        0.8342307692
+      ]
+    ]
+  },
+  "associations": {
+    "columns": [
+      "level",
+      "variable",
+      "target",
+      "cramers_v"
+    ],
+    "index": [
+      3,
+      7,
+      6,
+      5,
+      4,
+      2,
+      0,
+      8,
+      1
+    ],
+    "data": [
+      [
+        "trajectory",
+        "world_id",
+        "y_traj",
+        0.8563607169
+      ],
+      [
+        "step",
+        "tool",
+        "y_gate",
+        0.508655791
+      ],
+      [
+        "step",
+        "t (position)",
+        "y_scan",
+        0.4592508646
+      ],
+      [
+        "step",
+        "t (position)",
+        "y_gate",
+        0.3886126388
+      ],
+      [
+        "trajectory",
+        "n_steps",
+        "y_traj",
+        0.307675006
+      ],
+      [
+        "trajectory",
+        "template_id",
+        "y_traj",
+        0.1807209338
+      ],
+      [
+        "trajectory",
+        "domain",
+        "y_traj",
+        0.0885608249
+      ],
+      [
+        "step",
+        "domain",
+        "y_gate",
+        0.0857536936
+      ],
+      [
+        "trajectory",
+        "complexity",
+        "y_traj",
+        0.0187338518
+      ]
+    ]
+  },
+  "shortcuts": {
+    "columns": [
+      "roc_auc",
+      "pr_auc",
+      "prevalence",
+      "f1",
+      "precision",
+      "recall",
+      "val_worlds_seen_in_train",
+      "f1_on_covered"
+    ],
+    "index": [
+      "world lookup \u2192 y_traj",
+      "position only \u2192 y_gate",
+      "position only \u2192 y_scan",
+      "trajectory length \u2192 y_traj"
+    ],
+    "data": [
+      [
+        0.961,
+        0.953,
+        0.435,
+        0.838,
+        0.878,
+        0.802,
+        0.994,
+        0.842
+      ],
+      [
+        0.779,
+        0.326,
+        0.169,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.876,
+        0.304,
+        0.097,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        0.576,
+        0.469,
+        0.435,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    ]
+  },
+  "external": {
+    "columns": [
+      [
+        "AgentDrift",
+        "mean"
+      ],
+      [
+        "AgentDrift",
+        "50%"
+      ],
+      [
+        "AgentDrift",
+        "max"
+      ],
+      [
+        "ATBench",
+        "mean"
+      ],
+      [
+        "ATBench",
+        "50%"
+      ],
+      [
+        "ATBench",
+        "max"
+      ]
+    ],
+    "index": [
+      "steps / actions per trajectory",
+      "tools available per trajectory",
+      "task length (chars)",
+      "observation length (chars, median per trajectory)"
+    ],
+    "data": [
+      [
+        5.7,
+        6.0,
+        11.0,
+        4.5,
+        4.0,
+        31.0
+      ],
+      [
+        20.6,
+        20.0,
+        23.0,
+        3.2,
+        3.0,
+        21.0
+      ],
+      [
+        201.2,
+        182.0,
+        643.0,
+        263.1,
+        248.0,
+        700.0
+      ],
+      [
+        79.2,
+        75.0,
+        297.0,
+        2108.2,
+        685.0,
+        51719.0
+      ]
+    ]
+  },
+  "reproduction": {
+    "columns": [
+      "measure",
+      "19/11",
+      "recomputed",
+      "definition used"
+    ],
+    "index": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21
+    ],
+    "data": [
+      [
+        "position only \u2192 y_gate, ROC-AUC",
+        "0.754",
+        0.779,
+        "train rate per t, scored on val"
+      ],
+      [
+        "position only \u2192 y_scan, ROC-AUC",
+        "0.52",
+        0.876,
+        "train rate per t, scored on val"
+      ],
+      [
+        "world lookup \u2192 y_traj, F1",
+        "0.77",
+        0.838,
+        "train world majority, scored on val"
+      ],
+      [
+        "tool outside expected_tools, H full",
+        "0.69\u20130.81",
+        0.691,
+        "oracle, step level"
+      ],
+      [
+        "tool outside expected_tools, H delayed",
+        "0.69\u20130.81",
+        0.811,
+        "oracle, step level"
+      ],
+      [
+        "tool outside expected_tools, H partial",
+        "0.40",
+        0.402,
+        "oracle, step level"
+      ],
+      [
+        "tool outside expected_tools, B",
+        "0.24\u20130.32",
+        0.313,
+        "oracle, step level"
+      ],
+      [
+        "external-domain address in args, H full",
+        "0.43",
+        0.429,
+        "address domain \u2260 user domain"
+      ],
+      [
+        "external-domain address in args, H delayed",
+        "0.15",
+        0.147,
+        "address domain \u2260 user domain"
+      ],
+      [
+        "external-domain address in args, H partial",
+        "0.04",
+        0.043,
+        "address domain \u2260 user domain"
+      ],
+      [
+        "external-domain address in args, B",
+        "0.02",
+        0.022,
+        "address domain \u2260 user domain"
+      ],
+      [
+        "arg from previous obs, all H",
+        "0.32",
+        0.461,
+        "leaf value \u2265 4 chars in obs_<t, not in task"
+      ],
+      [
+        "arg from previous obs, B",
+        "0.16",
+        0.189,
+        "leaf value \u2265 4 chars in obs_<t, not in task"
+      ],
+      [
+        "instruction vocabulary at injection, full",
+        "0.996",
+        0.998,
+        "INSTRUCTION_RE, prefixes excluded"
+      ],
+      [
+        "instruction vocabulary at injection, failed",
+        "0.795",
+        0.826,
+        "INSTRUCTION_RE, prefixes excluded"
+      ],
+      [
+        "instruction vocabulary at injection, partial",
+        "0.047",
+        0.35,
+        "INSTRUCTION_RE, prefixes excluded"
+      ],
+      [
+        "instruction vocabulary at injection, delayed",
+        "0.07",
+        0.101,
+        "INSTRUCTION_RE, prefixes excluded"
+      ],
+      [
+        "external address or URL at injection, partial",
+        "0.13\u20130.21",
+        0.124,
+        "URL or address domain \u2260 user domain"
+      ],
+      [
+        "external address or URL at injection, delayed",
+        "0.13\u20130.21",
+        0.152,
+        "URL or address domain \u2260 user domain"
+      ],
+      [
+        "confession words in thought, H partial",
+        "0.445",
+        0.753,
+        "CONFESSION_RE"
+      ],
+      [
+        "confession words in thought, B of failed attacks",
+        "0.21",
+        0.214,
+        "CONFESSION_RE"
+      ],
+      [
+        "mean length, attacked vs other",
+        "6.07 vs 5.44",
+        "5.93 vs 5.45",
+        "mean n_steps"
+      ]
+    ]
+  }
+}

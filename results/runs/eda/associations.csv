@@ -1,0 +1,10 @@
+,level,variable,target,cramers_v
+3,trajectory,world_id,y_traj,0.8563607168987513
+7,step,tool,y_gate,0.5086557910272547
+6,step,t (position),y_scan,0.4592508646080445
+5,step,t (position),y_gate,0.3886126388414931
+4,trajectory,n_steps,y_traj,0.30767500602343045
+2,trajectory,template_id,y_traj,0.18072093379474433
+0,trajectory,domain,y_traj,0.08856082487461851
+8,step,domain,y_gate,0.08575369358423786
+1,trajectory,complexity,y_traj,0.018733851756201618

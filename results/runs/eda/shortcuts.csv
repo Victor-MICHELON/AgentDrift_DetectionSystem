@@ -1,0 +1,5 @@
+,roc_auc,pr_auc,prevalence,f1,precision,recall,val_worlds_seen_in_train,f1_on_covered
+world lookup → y_traj,0.961,0.953,0.435,0.838,0.878,0.802,0.994,0.842
+position only → y_gate,0.779,0.326,0.169,,,,,
+position only → y_scan,0.876,0.304,0.097,,,,,
+trajectory length → y_traj,0.576,0.469,0.435,,,,,
