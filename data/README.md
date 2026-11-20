@@ -9,12 +9,14 @@ Raw and processed data are **not committed** (see `.gitignore`). Sources, licens
 | `processed/` | Features per view (scanner / gate) |
 | `external/` | ATBench (Apache-2.0), AgentDojo (optional) |
 
-Download AgentDrift (pinned commit, see `configs/data.yaml`):
+Download and verify (pinned versions and SHA-256 in `configs/data.yaml`):
 
 ```bash
-git clone https://github.com/Asif-0209/AgentDrift data/raw/agentdrift
-git -C data/raw/agentdrift checkout 014a514fa998b4ac4519579fceb8a5884b379bda
-shasum -a 256 data/raw/agentdrift/data_taskdisjoint/*.jsonl   # compare with configs/data.yaml
+python -m agentdrift.data.download               # AgentDrift @ 014a514 -> data/raw/agentdrift
+python -m agentdrift.data.download --atbench     # + ATBench (HF revision 4476ef9) -> data/external/atbench
+python -m agentdrift.data.download --verify-only # offline check: commit, no modified file, checksums
 ```
 
-The base split is `data_taskdisjoint/` (no task template shared between parts). Read the dataset README section "Known regularities you must control for" before any modelling. A scripted download with checksum verification will live in `src/agentdrift/data/download.py`.
+The command is idempotent and exits with code 1 if a file is missing, modified or at the wrong version.
+
+The base split is `data_taskdisjoint/` (no task template shared between parts). Read the dataset README section "Known regularities you must control for" before any modelling.

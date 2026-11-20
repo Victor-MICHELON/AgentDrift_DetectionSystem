@@ -41,6 +41,7 @@ macOS: LightGBM and XGBoost need OpenMP → `brew install libomp`.
 
 | Result | Command |
 |---|---|
+| Data download + checksums | `python -m agentdrift.data.download --atbench` |
 | Data audit | `python -m agentdrift.pipelines.run_audit` |
 | v0.1 baseline | `python -m agentdrift.pipelines.run_baseline` |
 
