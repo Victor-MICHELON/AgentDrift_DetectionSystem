@@ -44,6 +44,7 @@ macOS: LightGBM and XGBoost need OpenMP → `brew install libomp`.
 |---|---|
 | Data download + checksums | `python -m agentdrift.data.download --atbench` |
 | Interim tables (parse + validate) | `python -m agentdrift.data.load` |
+| World anonymisation (mandatory before any model) | `python -m agentdrift.data.anonymize` |
 | EDA part A (tables, metrics, figures) | `python -m agentdrift.pipelines.run_eda` · notebook `notebooks/01_eda.ipynb` |
 | v0.1 baseline | `python -m agentdrift.pipelines.run_baseline` |
 

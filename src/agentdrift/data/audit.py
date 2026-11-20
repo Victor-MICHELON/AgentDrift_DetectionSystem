@@ -698,3 +698,80 @@ def atbench_tool_vocabulary() -> int:
     """Number of distinct tool names in ATBench (open vocabulary)."""
     raw = json.loads((ROOT / load_config("data")["atbench"]["raw_dir"] / "ATBench" / "test.json").read_text(encoding="utf-8"))
     return len({t["name"] for r in raw for t in r["tool_used"]})
+
+
+# --------------------------------------------------------------------------- part B: effect of anonymisation
+
+ANON_EMAIL_RE = re.compile(r"<(?:USER_EMAIL|CONTACT_\d+_EMAIL|INT_EMAIL_\d+|EXT_EMAIL_\d+)>")
+
+
+def provenance_indicators_anon(steps: pd.DataFrame, traj: pd.DataFrame) -> pd.DataFrame:
+    """Same indicators as `provenance_indicators`, read from the placeholders of the anonymised text.
+    Equal rates before / after = the anonymisation kept the relations it was meant to keep."""
+    s = steps.sort_values(["traj_id", "t"])
+    task = traj.set_index("traj_id")["task"]
+    rows, prev_traj, history = [], None, ""
+    for traj_id, args_json, obs in zip(s["traj_id"], s["args_json"], s["obs"]):
+        if traj_id != prev_traj:
+            prev_traj, history = traj_id, ""
+            task_l = task[traj_id].lower()
+        emails = set(ANON_EMAIL_RE.findall(args_json))
+        unknown = {e for e in emails if ("INT_EMAIL" in e or "EXT_EMAIL" in e) and e.lower() not in task_l}
+        leaves = [v.lower() for v in _leaf_values(json.loads(args_json)) if len(v) >= 4]
+        rows.append(
+            (
+                bool(unknown),
+                any("EXT_EMAIL" in e for e in emails),
+                any("INT_EMAIL" in e for e in unknown),
+                any(v in history and v not in task_l for v in leaves),
+                bool(AMOUNT_RE.search(args_json)),
+            )
+        )
+        history += " " + obs.lower()
+    cols = ["unknown address", "external domain", "unknown same-domain address", "arg from previous obs", "amount in args"]
+    return pd.DataFrame(rows, columns=cols, index=s.index).reindex(steps.index)
+
+
+def provenance_before_after(d_raw: dict, d_anon: dict) -> pd.DataFrame:
+    """Provenance rates by step group, raw vs anonymised (columns: indicator x version)."""
+    before = provenance_by_group(d_raw)
+    ind = provenance_indicators_anon(d_anon["steps"], d_anon["trajectories"])
+    after = provenance_by_group(d_anon, ind)
+    cols = [c for c in before.columns if c != "n"]
+    return pd.concat({"raw": before[cols], "anonymised": after[cols]}, axis=1).swaplevel(axis=1).sort_index(axis=1, level=0)
+
+
+def trajectory_text(traj: pd.DataFrame, steps: pd.DataFrame) -> pd.Series:
+    body = (steps["thought"] + " " + steps["args_json"] + " " + steps["obs"]).groupby(steps["traj_id"]).agg(" ".join)
+    return traj.set_index("traj_id")["task"] + " " + body.reindex(traj["traj_id"]).to_numpy()
+
+
+def world_probe(traj: pd.DataFrame, steps: pd.DataFrame, train: str = "train", evaluate: str = "val") -> dict:
+    """Can the TEXT reveal the world? 1-nearest-neighbour probe: TF-IDF fitted on train trajectories, each val
+    trajectory takes the world of its most similar train trajectory (val trajectories whose world exists in train).
+
+    Reference level: worlds are tied to a generation job (one source category per domain), so a neighbour with
+    similar CONTENT is often of the same category, hence of one of fewer worlds. The fair chance level is therefore
+    1 / (number of train worlds of the same domain x source category), not 1 / (worlds of the domain).
+    Identity is removed when world_accuracy falls close to chance_given_category."""
+    from sklearn.feature_extraction.text import TfidfVectorizer
+
+    text = trajectory_text(traj, steps)
+    t = traj.set_index("traj_id")
+    tr_ids = t.index[t["origin_split"] == train]
+    ev_ids = t.index[(t["origin_split"] == evaluate) & t["world_id"].isin(set(t.loc[tr_ids, "world_id"]))]
+    vec = TfidfVectorizer(sublinear_tf=True, token_pattern=r"(?u)<[A-Z_0-9]+>|\b\w\w+\b").fit(text[tr_ids])
+    nn = np.asarray((vec.transform(text[ev_ids]) @ vec.transform(text[tr_ids]).T).argmax(axis=1)).ravel()
+    neighbour = tr_ids[nn]
+    same_world = t.loc[neighbour, "world_id"].to_numpy() == t.loc[ev_ids, "world_id"].to_numpy()
+    same_cat = t.loc[neighbour, "source_category"].to_numpy() == t.loc[ev_ids, "source_category"].to_numpy()
+    key = t["domain"] + "|" + t["source_category"]
+    n_worlds = t.loc[tr_ids].groupby(key[tr_ids])["world_id"].nunique()
+    n_worlds_dom = t.loc[tr_ids].groupby("domain")["world_id"].nunique()
+    return {
+        "n_eval": len(ev_ids),
+        "world_accuracy": round(float(same_world.mean()), 3),
+        "chance_given_domain": round(float((1 / t.loc[ev_ids, "domain"].map(n_worlds_dom)).mean()), 4),
+        "chance_given_category": round(float((1 / key[ev_ids].map(n_worlds)).mean()), 4),
+        "neighbour_same_category": round(float(same_cat.mean()), 3),
+    }
