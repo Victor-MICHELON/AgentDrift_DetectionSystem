@@ -2,6 +2,7 @@
 
 > Concrete flaws in AI-generated Machine Learning logic that we caught, with root cause, fix and **verified** evidence that the fix works.
 > Target: 6–8 substantive flaws (minimum 4), at least one per student. Only real flaws, recorded when they happen.
+> Entries are written independently of [PROMPT_LOG.md](PROMPT_LOG.md): add one whenever a significant flaw or hallucination is documentable (exact output, reason, fix, evidence), whether or not it came from a logged prompt. "Linked prompt" is optional.
 
 ## Summary
 
