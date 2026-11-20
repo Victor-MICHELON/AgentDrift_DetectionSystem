@@ -1,15 +1,16 @@
-# Evaluation protocol (CONTEXT.md section 8.1).
+# Evaluation protocol (CONTEXT.md section 8.1). Column names refer to data/interim/trajectories.parquet.
 seed: 42
-group_key: task        # task template string (250 templates; maps to task_id via pools/*_tasks.json)
-domain_key: agent      # email | banking | web | coding | medical
-strata: [source_category, agent]   # stratification only, never model inputs
-fixed_test: true       # data_taskdisjoint/test.jsonl = 35 templates, 1,722 trajectories, untouched
-                       # train + val merged (215 templates) for the grouped CV below
-outer_folds: 5         # StratifiedGroupKFold by task template
-inner_folds: 3         # nested CV for tuning and calibration
+group_key: template_id   # task template (250 templates; mapped from the task text via pools/*_tasks.json)
+domain_key: domain       # email | banking | web | coding | medical
+world_key: world_id      # control split only (GroupKFold by world)
+strata: [source_category, domain]   # stratification only, never model inputs
+fixed_test: true         # origin_split == test: 35 templates, 1,722 trajectories, untouched until final evaluation
+                         # train + val merged (215 templates) for the grouped CV below
+outer_folds: 5           # StratifiedGroupKFold by task template
+inner_folds: 3           # nested CV for tuning and calibration (generated on demand inside each outer fold)
 leave_one_domain_out: true
 target_fpr_per_step: [0.01, 0.002]
 bootstrap:
   n_resamples: 2000
-  unit: task           # cluster bootstrap: resample tasks, never steps
+  unit: template_id      # cluster bootstrap: resample templates, never steps
   ci: 0.95

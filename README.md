@@ -18,11 +18,12 @@ python3.12 -m venv .venv
 source .venv/bin/activate          # fish: source .venv/bin/activate.fish
 pip install -r requirements.txt
 pip install -e . --no-deps         # makes `import agentdrift` work everywhere
-python -m ipykernel install --user --name agentdrift --display-name "Python 3.12 (agentdrift)"  # notebook kernel
 pytest
 ```
 
 macOS: LightGBM and XGBoost need OpenMP → `brew install libomp`.
+
+Notebooks: open `notebooks/*.ipynb` in VS Code and select the `.venv` interpreter (no Jupyter command line needed).
 
 ## Layout
 
@@ -45,6 +46,7 @@ macOS: LightGBM and XGBoost need OpenMP → `brew install libomp`.
 | Data download + checksums | `python -m agentdrift.data.download --atbench` |
 | Interim tables (parse + validate) | `python -m agentdrift.data.load` |
 | World anonymisation (mandatory before any model) | `python -m agentdrift.data.anonymize` |
+| Cross-validation folds (fixed) | `python -m agentdrift.splits.grouped` |
 | EDA part A (tables, metrics, figures) | `python -m agentdrift.pipelines.run_eda` · notebook `notebooks/01_eda.ipynb` |
 | v0.1 baseline | `python -m agentdrift.pipelines.run_baseline` |
 
