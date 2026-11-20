@@ -1,10 +1,11 @@
 # CONTEXT.md — Document de fondation du projet
 
 > **Projet :** système de détection précoce contre le détournement d'agents IA (injection de prompt indirecte)
+
 > **Cadre :** Projet Machine Learning ESILV 2026 — groupe DIA 7
 > **Équipe :** Oscar DUJARDIN · Bertrand MAIGRE · Victor MICHELON · Jean-Baptiste PASTEAU
 > **Sources :** `Step1_ProjetML.pdf` (rendu Step 1), `SYNTHESE_PROJET_ML.md` (cadrage du 17/11/2026), consignes du cours (voir [INSTRUCTIONS.md](INSTRUCTIONS.md))
-> **Statut :** v1, 19/11/2026. Document vivant : toute décision qui change le protocole est notée dans [JOURNAL.md](JOURNAL.md).
+> **Statut :** v1.1, 19/11/2026 (intègre l'audit des données, le brainstorming du 19/11 et l'article DriftNet). Document vivant : toute décision qui change le protocole est notée dans [JOURNAL.md](JOURNAL.md).
 
 Ce document est la référence commune. Avant d'écrire du code ou de lancer une expérience, on vérifie qu'elle est cohérente avec ce fichier. Les éléments marqués **[À CONFIRMER]** dépendent de l'audit des données ou d'une vérification bibliographique.
 
@@ -70,20 +71,46 @@ Une trajectoire est une suite d'étapes τ = (u, s₁, …, s_T), où u est la t
 
 et produit un score r_t = f(x_t) ∈ [0, 1], puis une décision d_t = π(r₁, …, r_t) ∈ {autoriser, revue, bloquer}.
 
-**Deux points de contrôle (hypothèse H2) :**
-- **Scanner de sorties d'outils :** score calculé sur o_{t−1} (+ contexte) dès que la réponse d'outil arrive, avant que l'agent ait proposé l'action suivante. Il voit l'injection elle-même.
-- **Portail d'action (gate) :** score calculé sur a_t (+ contexte). Il voit l'action proposée, donc l'effet de l'injection.
+**Deux points de contrôle complémentaires (hypothèse H2) :** les deux agissent **avant l'exécution** de a_t, mais ne regardent pas la même chose.
 
-**Cibles d'apprentissage [À CONFIRMER après l'audit du schéma réel] :**
-Le jeu étiquette chaque étape : *bénigne*, *point d'injection*, *détournée*, *injection échouée*. Cibles candidates :
-
-| Cible | Définition | Usage |
+| | Scanner de sorties d'outils | Portail d'action (gate) |
 |---|---|---|
-| `y_scan` | 1 si o_{t−1} contient une injection (point d'injection, réussie ou échouée) | scanner |
-| `y_gate` | 1 si a_t est une action détournée | portail |
-| `y_traj` | 1 si la trajectoire est attaquée avec succès | décision séquentielle, métriques par trajectoire |
+| Lit | o_{t−1} (+ tâche u, historique), dès que la réponse d'outil arrive | a_t = outil + arguments proposés (+ tâche u, historique) |
+| Ne lit jamais | a_t, o_t, étapes > t | o_t (la réponse à a_t), étapes > t |
+| Détecte | la **tentative** : un contenu piégé est entré dans le contexte | le **détournement de l'agent** : l'action proposée sert l'attaquant, avant le dommage |
+| Signale aussi | les injections que l'agent ignorera (tentatives résistées) | — |
+| Aveugle quand | l'injection n'est pas lisible dans o_{t−1} (fréquent pour les attaques partielles et retardées, §6.2) | l'action détournée ressemble à une action légitime (destinataire du même domaine, attaque partielle) |
 
-Les **injections échouées** sont des négatifs difficiles pour le portail (contenu suspect mais action légitime) et des positifs pour le scanner. On fixe ce choix au début du Step 2 et on le note dans [JOURNAL.md](JOURNAL.md).
+Dans AgentDrift, l'étape détournée suit **toujours immédiatement** l'injection pour les attaques complètes et partielles (83 % des attaques) : scanner et portail décident alors **au même instant t**. Le scanner n'a une avance réelle (2 à 3 étapes) que sur les 900 attaques retardées. L'intérêt du couple n'est donc pas surtout l'anticipation mais la **complémentarité** : cause contre effet, tentative contre réussite (approche adoptée le 19/11/2026).
+
+**Cibles d'apprentissage** (labels par étape : B = bénigne, I = point d'injection, H = détournée, F = injection échouée) :
+
+| Cible | Définition | Usage | Statut |
+|---|---|---|---|
+| `y_scan(t)` | `label_{t−1} ∈ {I, F}` : o_{t−1} contient une injection, réussie ou non | scanner | fixé 19/11 |
+| `y_gate(t)` | `label_t == H` : a_t est une action détournée | portail | fixé 19/11 |
+| `y_traj` | proposition : 1 si `category == attacked` (la trajectoire contient un H) | décision séquentielle, métriques par trajectoire | **[À CONFIRMER]** |
+
+Les **injections échouées** sont des positifs pour le scanner et des négatifs difficiles pour le portail (contenu suspect mais action légitime). Statut métier d'une tentative résistée signalée par le scanner (alerte utile ou fausse alerte) **[À TRANCHER]** : en attendant, on rapporte les deux lectures.
+
+### 3.4 Positionnement par rapport à l'état de l'art
+Le détecteur de référence sur AgentDrift est **DriftNet** (Pinjari et Saint-Germain, 2026, arXiv 2609.10892) : Transformer à deux têtes sur les embeddings d'étapes, F1 **0,983** sur le split task-disjoint. Il est conçu pour l'analyse **a posteriori**, pas comme garde-fou :
+- il lit **toute la trajectoire dans les deux sens**, futur compris ;
+- il lit `obs_t`, qui raconte souvent l'action détournée déjà exécutée (« Email sent to … »), et `thought`, qui avoue souvent l'attaque (« The system says I should… », « Wait — the user did not ask… ») ;
+- le **monde n'est pas anonymisé**, alors qu'une recherche de l'identité du monde prédit la catégorie à 86,9 %.
+
+**Question de positionnement :** que reste-t-il de cette performance sous les contraintes d'un garde-fou réel ? On la mesure par une **échelle d'ablation**, en retirant une à une les informations indisponibles en production :
+
+| Marche | Configuration | Information retirée |
+|---|---|---|
+| 0 | Modèle de trajectoire bidirectionnel, toutes les entrées (équivalent DriftNet) | — |
+| 1 | Même modèle, masque causal (décision à t) | le futur |
+| 2 | Sans `obs_t` (vues strictes du §3.3) | l'effet observé de l'action |
+| 3 | Sans `thought` | le raisonnement généré |
+| 4 | Monde anonymisé | l'identité du monde |
+| 5 | Préfixes, domaines et montants masqués | les artefacts du générateur |
+
+Chaque marche est rapportée avec IC (bootstrap groupé). La chute cumulée est un résultat central du rapport (H3). La marche 5 est la configuration de référence du projet.
 
 ---
 
@@ -92,14 +119,16 @@ Les **injections échouées** sont des négatifs difficiles pour le portail (con
 | # | Hypothèse | Expérience qui la teste | Phase |
 |---|---|---|---|
 | **H1** | Les variables structurelles (séquence d'outils, provenance des arguments) généralisent mieux que les mots seuls. | Texte seul vs structure seule vs texte + structure, en intra-distribution puis en domaine exclu. | Step 2 |
-| **H2** | Un scanner de sorties d'outils anticipe mieux qu'un portail d'action. | Mêmes modèles sur les deux vues ; comparer la part d'attaques stoppées avant l'action et l'avance de détection. | Step 3 |
-| **H3** | Une part du score vient d'artefacts de génération (domaine, année, style) et disparaît quand on les masque. | Masquer ou normaliser ces artefacts ; mesurer la chute de performance ; baseline « raccourci » (monde + tâche seuls). | Step 2 |
+| **H2** *(reformulée 19/11)* | Le scanner (tentative) et le portail (détournement) sont **complémentaires** : leur combinaison stoppe plus d'attaques avant le premier H, à fausses alertes égales, que chacun seul. Le scanner n'anticipe que sur les attaques retardées. | Mêmes modèles sur les deux vues ; rappel par type d'attaque (complète, partielle, retardée) et par visibilité de l'injection ; recouvrement des attaques détectées ; gain de la combinaison (v0.4) ; avance de détection sur les retardées seulement. | Step 3 |
+| **H3** | Une part du score vient d'artefacts de génération (identité du monde, préfixes d'injection, domaines et montants récurrents, `thought`) et disparaît quand on les masque. | Échelle d'ablation du §3.4 ; baselines « raccourci » (monde seul, position seule). | Step 2 |
 | **H4** | Boosting, ensembles, transformer ou modèle de séquence améliorent la détection des attaques partielles et retardées. | Comparaison par sous-groupe d'attaque, contre la baseline, avec tests appariés. | Step 3 |
 | **H5** | Un seuil réglé sur un domaine ne garantit pas le même taux de faux positifs ailleurs. | Seuil fixé sur la validation d'un domaine, appliqué aux autres ; écart entre FPR visé et FPR observé. | Phase 4 |
 | **H6** | Une décision séquentielle (score cumulé) contrôle mieux les fausses alertes accumulées qu'un seuil par étape. | Seuil par étape vs CUSUM / max cumulé ; fausses alertes par trajectoire à rappel égal. | Step 3 (option) |
 | **H7** | Un détecteur d'anomalies entraîné sur le bénin seul approche le supervisé. | Isolation Forest / autoencodeur sur bénin vs supervisé, surtout sur les attaques non vues. | Step 3 (option) |
 
-On choisit **au moins une** option entre H6 et H7. H6 est prioritaire car directement lié au coût métier.
+| **H8** *(proposée 19/11, [À VALIDER])* | La **cohérence tâche ↔ action** (l'action a_t sert-elle la tâche u ?) généralise mieux que la détection du texte d'injection, surtout quand l'injection est invisible. | Plausibilité outil \| tâche apprise sur le bénin, puis cross-encoder (u, a_t) ; rappel sur les attaques partielles / retardées et en domaine exclu, contre le scanner. | Step 3 |
+
+On choisit **au moins une** option entre H6 et H7. H6 est prioritaire car directement lié au coût métier. Avec des trajectoires courtes (≈ 5,7 étapes), le gain attendu de H6 est modeste : version légère.
 
 ---
 
@@ -113,6 +142,20 @@ Baselines à base de mots sur les données simulées d'AgentDrift :
 
 Ces chiffres montrent qu'il y a de la matière, pas une performance réelle. Ils devront être **reproduits** dans notre pipeline (v0.1) avant d'être cités dans le rapport.
 
+**Repères publiés sur AgentDrift** (à vérifier sur les PDF avant citation, cf. [REFERENCE.md](REFERENCE.md)) :
+
+| Modèle | Split | F1 | Rappel complètes / partielles / retardées | Taux d'alerte benign / hard_negative / failed_attack |
+|---|---|---|---|---|
+| Baseline de surface (LR, 6 variables), article AgentDrift | stratifié | 0,647 | 0,880 / 0,082 / 0,231 | 0,105 / 0,116 / 0,187 |
+| Baseline de surface réentraînée, article DriftNet | task-disjoint | 0,678 | 0,902 / 0,111 / 0,171 | 0,090 / 0,083 / 0,170 |
+| DriftNet (a posteriori, non anonymisé) | task-disjoint | 0,983 | 0,998 / 0,986 / 0,932 | 0,015 / 0,029 / 0,000 |
+
+**Mesures exploratoires du 19/11** (12 536 trajectoires, motifs simples, à reproduire dans `run_audit`) :
+- baseline « position seule » : ROC-AUC **0,754** sur `y_gate`, 0,52 sur `y_scan` ;
+- outil hors des `expected_tools` du gabarit : **69–81 %** des H complètes / retardées, 40 % des H partielles, **24–32 %** des étapes B ;
+- argument de a_t présent dans une `obs` antérieure mais pas dans la tâche : 32 % des H contre 16 % des B ;
+- aucun outil n'est réservé aux attaques : chaque outil vu en H apparaît aussi en B.
+
 ---
 
 ## 6. Données
@@ -121,8 +164,8 @@ Ces chiffres montrent qu'il y a de la matière, pas une performance réelle. Ils
 
 | Jeu | Contenu | Licence | Rôle | Statut |
 |---|---|---|---|---|
-| **AgentDrift** — github.com/Asif-0209/AgentDrift | 12 536 trajectoires synthétiques, 71 024 étapes étiquetées, 5 domaines, 103 outils | CC BY 4.0 | **Entraînement, validation, test interne** | Téléchargé et pré-analysé |
-| **ATBench** — huggingface.co/datasets/AI45Research/ATBench | 1 000 trajectoires (503 sûres, 497 dangereuses), plus de 2 000 outils | Apache-2.0 | **Test externe** : fausses alertes et transfert hors distribution | Non testé (accès bloqué depuis l'environnement d'analyse). À vérifier. |
+| **AgentDrift** — github.com/Asif-0209/AgentDrift (arXiv 2609.06972) | 12 536 trajectoires synthétiques (4 000 bénignes, 5 536 attaquées, 1 500 attaques échouées, 1 500 négatifs difficiles), 71 024 étapes étiquetées, 5 domaines, 103 outils, 3 à 11 étapes. Générateur : Llama-3.3-70B | CC BY 4.0 | **Entraînement, validation, test interne** | Téléchargé (commit `014a514`, checksums dans `configs/data.yaml`) et audité |
+| **ATBench** — huggingface.co/datasets/AI45Research/ATBench | 1 000 trajectoires (503 sûres, 497 dangereuses), plus de 2 000 outils | Apache-2.0 | **Test externe** : fausses alertes et transfert hors distribution | Accessible (18 Mo). Évaluation au niveau trajectoire uniquement (pas de label par étape), périmètre fixé à l'avance (cf. JOURNAL 19/11) |
 | **AgentDojo** — github.com/ethz-spylab/agentdojo | 97 tâches, 629 cas de sécurité, 4 suites d'outils, plusieurs familles d'attaques | à vérifier | **Test externe bonus** (traces réelles d'agents) | Produire des trajectoires demande des appels à un LLM. Vérifier si des traces publiées existent. |
 | **ClawTrojan** | 362 trajectoires | Non précisée | — | **Exclu** tant que la licence n'est pas confirmée |
 
@@ -131,10 +174,17 @@ Ces chiffres montrent qu'il y a de la matière, pas une performance réelle. Ils
 ### 6.2 Limites connues d'AgentDrift (à traiter explicitement)
 - **Un seul générateur** : risque d'apprendre son style plutôt que l'attaque (→ H3, test externe).
 - **Trajectoires courtes** (≈ 6 étapes) et **injection très régulière** (étape 2 ou 3) : l'avance de détection possible n'est que de 1 à 2 étapes. **L'indice de l'étape seul peut prédire l'attaque**, c'est un raccourci à mesurer.
-- **Fuite monde / tâche** : F1 0,77 sans regarder le contenu de l'agent.
-- **Test fixe de seulement 35 tâches** : intervalles de confiance très larges. D'où la validation croisée groupée sur les **250 gabarits** de tâches.
+- **Fuite d'identité du monde** : F1 0,77 sans regarder le contenu de l'agent ; dans 4 domaines sur 5, 95–99 % des trajectoires d'un monde sont dans une même catégorie. Parade : anonymisation obligatoire (JOURNAL 19/11).
+- **Test fixe de 35 gabarits** (1 722 trajectoires, split `data_taskdisjoint/`) : intervalles de confiance larges. D'où la validation croisée groupée sur les 215 autres gabarits.
+- **Préfixes d'injection propres à chaque catégorie** : « CORRECTION: » (partielles), « SECURITY ALERT » / « URGENT … » (échouées), « NOTE: » (retardées). Le style de l'injection révèle si elle va réussir : artefact à masquer (H3).
+- **Injections souvent invisibles** dans les attaques partielles et retardées : mots d'injection présents dans l'`obs` du point d'injection pour 99,6 % des complètes et 79,5 % des échouées, mais **4,7 %** des partielles et **7 %** des retardées. Exemple : « Email … contains invoice number INV0023 and amount $1000. » est étiqueté `injection_point`. Le scanner ne peut pas les voir ; seul le portail peut agir (colonne `injection_visible`, H8).
+- **Écart injection → action détournée fixe** : 1 étape pour les complètes et partielles, 2 à 3 pour les retardées (§3.3).
+- **Adresses du même domaine** : dans les attaques partielles, le destinataire ajouté appartient souvent au domaine de l'utilisateur (`alex.taylor@edtech.io`). Adresse inconnue dans les arguments : 43 % des H complètes, 15 % des retardées, **4 %** des partielles, 2 % des B.
+- **`thought` qui avoue** : mots comme « the system says », « not requested », « suspicious » dans 44,5 % des H partielles et 21 % des étapes B des attaques échouées (étapes de « récupération » : « Wait — the user did not ask… »).
+- **Longueur** : trajectoires attaquées plus longues (6,07 étapes contre 5,44) : fuite si un modèle voit la longueur totale (L3).
+- **Banking déséquilibré** : 2 136 trajectoires au lieu de 2 600 (rejets du générateur).
 
-### 6.3 Audit à faire en début de Step 2 **[À CONFIRMER]**
+### 6.3 Audit en début de Step 2 *(fait le 19/11/2026, voir JOURNAL ; à reproduire dans `run_audit`)*
 - Schéma réel : colonnes, types, format (JSON, JSONL, Parquet), identifiants (trajectoire, gabarit, domaine, étape).
 - Valeurs manquantes, doublons exacts et quasi-doublons (même gabarit, texte quasi identique).
 - Distribution des étiquettes par étape, par domaine, par type d'attaque, par position.
@@ -152,32 +202,34 @@ Toutes calculées **uniquement** à partir de x_t (passé + étape courante).
 | Famille | Exemples | Hypothèse |
 |---|---|---|
 | **Texte** | TF-IDF mots et caractères sur o_{t−1}, a_t, u ; embeddings de phrases | baseline |
-| **Structure** | outil proposé, catégorie de risque de l'outil, n-grammes de la séquence d'outils, position t, nombre d'appels sortants, changement de type d'outil | H1 |
-| **Provenance des arguments** | les arguments de a_t viennent-ils de la tâche u, d'une réponse d'outil antérieure, ou de nulle part ? Destinataire / URL / montant présent dans u ? Similarité tâche ↔ action | H1 |
+| **Structure** | outil proposé, catégorie de risque de l'outil (6 catégories, utilisées à la place du nom en domaine exclu), n-grammes de la séquence d'outils, nombre d'appels sortants, changement de type d'outil. La position t n'est testée que via la baseline « position seule » | H1 |
+| **Provenance des arguments** | les arguments de a_t viennent-ils de la tâche u, d'une réponse d'outil antérieure, ou de nulle part ? Destinataire / URL / montant présent dans u ? Destinataire nouveau **même s'il est du même domaine** (attaques partielles) | H1, H8 |
+| **Cohérence tâche ↔ action** | « surprise » de l'outil sachant la tâche, P(outil \| u) apprise sur les étapes bénignes du pli d'entraînement ; similarité u ↔ a_t ; cross-encoder (u, a_t) en v0.5. `expected_tools` n'est jamais une entrée : seulement une borne haute (oracle) | H8 |
 | **Indices d'injection** | marqueurs impératifs dans o_{t−1}, rupture de style, présence d'adresses ou d'URL nouvelles | H2 |
-| **Artefacts (à masquer)** | domaine, années, noms propres du monde simulé, formulations propres au générateur | H3 |
+| **Artefacts (à masquer)** | identité du monde (noms, sociétés, adresses → espaces réservés), préfixes d'injection (« CORRECTION: », « SECURITY ALERT », « NOTE: »), `ext-audit.com`, montants, `thought` | H3 |
 
 ### 7.2 Feuille de route des modèles (versions)
 
 | Version | Contenu | Étape du cours |
 |---|---|---|
-| **v0.0** | Baselines triviales : classe majoritaire, aléatoire, **raccourci** (monde + tâche + position seuls) | Step 2 |
+| **v0.0** | Baselines triviales : classe majoritaire, aléatoire, **raccourcis** (recherche du monde, position seule), règle de surface de l'article AgentDrift | Step 2 |
 | **v0.1** | **Baseline** : TF-IDF + régression logistique (`class_weight`), calibrée | Step 2.3 |
 | **v0.2** | **AutoML** : préparation, feature engineering, sélection de modèles (LR, arbre, SVM linéaire, forêt, k-NN, Naive Bayes), optimisation des hyperparamètres (Optuna ou FLAML), dans une validation croisée groupée | Step 2.5 |
 | **v0.3** | Variables structurelles et de provenance + masquage des artefacts (H1, H3) ; **boosting** (LightGBM / XGBoost / CatBoost) | Step 3.2 |
-| **v0.4** | **Ensemble** : stacking ou vote pondéré texte + structure + scanner + portail | Step 3.5 |
-| **v0.5** | **Modèle hors programme** : transformer fine-tuné (DeBERTa-v3) sur la vue scanner et/ou modèle de séquence sur les étapes (GRU ou petit transformer) | Step 3.6–3.8 |
+| **v0.4** | **Ensemble scanner + portail** (approche complémentaire, H2) : stacking ou combinaison des deux scores, plus texte + structure | Step 3.5 |
+| **v0.5** | **Modèle hors programme** : DeBERTa-v3 fine-tuné (cross-encoder tâche ↔ action sur la vue portail, H8, et/ou vue scanner), et/ou modèle de séquence **causal** sur les étapes (équivalent causal de DriftNet, marches du §3.4) | Step 3.6–3.8 |
 | **v0.6** | **Décision séquentielle** (H6, CUSUM / score cumulé) et/ou **détection d'anomalies** (H7) | Step 3 option |
 | **v1.0** | Modèle final calibré, seuils transférés, évalué en domaine exclu et sur ATBench | Phase 4 |
 
 ### 7.3 Modèle hors programme (proposition)
-**Choix recommandé : DeBERTa-v3 (small ou base) fine-tuné en classification**, sur la vue scanner (réponse d'outil + tâche) puis sur la vue portail.
+**Choix recommandé : DeBERTa-v3 (small ou base) fine-tuné en classification**. Proposition du 19/11 : l'utiliser surtout en **cross-encoder sur la paire (tâche u, action a_t)** de la vue portail (H8). C'est plus original qu'un détecteur d'injection sur la vue scanner, qui reproduirait les détecteurs publics (ProtectAI, Prompt Guard) et serait aveugle aux injections invisibles. La vue scanner reste une seconde expérience.
 - **Référence principale :** He, Gao, Chen (2023), *DeBERTaV3: Improving DeBERTa using ELECTRA-Style Pre-Training with Gradient-Disentangled Embedding Sharing*, ICLR 2023. Et He et al. (2021), *DeBERTa: Decoding-enhanced BERT with Disentangled Attention*, ICLR 2021.
 - **Justification :** c'est l'architecture utilisée par plusieurs détecteurs d'injection de prompt publics, ce qui donne aussi un benchmark de l'état de l'art. Le modèle tient sur un GPU modeste et reste compatible avec un budget de latence.
 - **Alternative :** modèle de séquence sur les embeddings des étapes (GRU, Cho et al., 2014 ; ou transformer causal) pour capter les attaques retardées (H4).
 - **Risque à surveiller :** un transformer est le modèle le plus susceptible d'apprendre le style du générateur. Le masquage (H3) et le test externe sont obligatoires pour lui.
 
 ### 7.4 Benchmarks de l'état de l'art (Step 2.4) **[À CONFIRMER : licences, accès, scores publiés]**
+- **DriftNet** et la **baseline de surface** d'AgentDrift : seuls repères publiés sur notre jeu (§5). DriftNet sert de marche 0 de l'échelle d'ablation (§3.4) : on le réimplémente (ou un équivalent simple) plutôt que de comparer des chiffres obtenus sous d'autres contraintes.
 - **Détecteurs d'injection pré-entraînés appliqués sans réentraînement** : Meta Prompt Guard (1 / 2), ProtectAI `deberta-v3-base-prompt-injection-v2`. Ils mesurent ce qu'un outil prêt à l'emploi fait sur nos données.
 - **Classifieurs de sécurité LLM** : Llama Guard (Inan et al., 2023), en option si le coût le permet.
 - **Défenses publiées sur AgentDojo** (taux de succès d'attaque et utilité rapportés par Debenedetti et al., 2024) : tool filter, détecteur d'injection, spotlighting. On les cite comme repères, pas comme comparaison directe (protocoles différents).
@@ -194,8 +246,8 @@ Toutes calculées **uniquement** à partir de x_t (passé + étape courante).
 ## 8. Protocole d'évaluation
 
 ### 8.1 Découpage des données
-1. **Test interne fixe** (35 tâches) : mis de côté dès le départ, utilisé une seule fois par version finale. Résultat rapporté **avec intervalle de confiance** car l'échantillon est petit.
-2. **Validation croisée groupée** sur le reste : `StratifiedGroupKFold` avec **groupe = gabarit de tâche** (250 gabarits). Aucune trajectoire d'un même gabarit dans deux plis. Graine fixée.
+1. **Test interne fixe** : `data_taskdisjoint/test.jsonl`, **35 gabarits, 1 722 trajectoires**, mis de côté dès le départ, utilisé une seule fois par version finale. Résultat rapporté **avec intervalle de confiance** car l'échantillon est petit. Le split stratifié `data/` ne sert qu'à comparer avec l'article AgentDrift.
+2. **Validation croisée groupée** sur train + val fusionnés (**215 gabarits**) : `StratifiedGroupKFold` avec **groupe = gabarit de tâche**, strates = `source_category` × domaine. Aucune trajectoire d'un même gabarit dans deux plis. Graine fixée. Contrôle complémentaire : `GroupKFold` par monde + baseline « recherche du monde », qui doit tomber au hasard après anonymisation.
 3. **Validation imbriquée** pour l'optimisation d'hyperparamètres et la calibration : boucle interne groupée dans chaque pli externe.
 4. **Domaine exclu (leave-one-domain-out)** : 5 entraînements, chacun testé sur le domaine non vu (H1, H5).
 5. **Test externe** : ATBench (et AgentDojo en bonus), sans réentraînement, avec seuil transféré.
@@ -210,11 +262,15 @@ Toutes calculées **uniquement** à partir de x_t (passé + étape courante).
 | **Part des attaques stoppées avant le premier appel dangereux** | Objectif métier n°1 (détection précoce) |
 | **Avance de détection** (en étapes) | Mesure de la précocité |
 | **Fausses alertes par trajectoire bénigne** | Coût métier réel (cumul sur n étapes) |
+| **Rappel par type d'attaque** (complète / partielle / retardée) et par visibilité de l'injection | Les types échouent pour des raisons différentes ; comparable aux articles |
+| **Taux d'alerte par classe négative** (benign, hard_negative, failed_attack) | Recommandé par AgentDrift ; sépare fausses alertes et tentatives résistées |
 | Brier, ECE | Qualité de la calibration |
 | Latence par décision | Faisabilité d'un service en ligne |
 | F1 / précision / rappel au seuil choisi | Lisibilité, jamais seuls |
 
 L'**accuracy** n'est pas utilisée comme critère de sélection.
+
+**Évaluation à la première alerte.** Les métriques métier (attaques stoppées, avance, fausses alertes par trajectoire) simulent le garde-fou : la première alerte arrête la trajectoire, et seules les étapes jusqu'à elle comptent. Le H à stopper est le **premier H** (5 536, un par trajectoire attaquée, contre 12 349 étapes H au total). L'entraînement utilise toutes les étapes ; les métriques par étape restent rapportées à titre de diagnostic.
 
 ### 8.3 Statistiques
 - **Intervalles de confiance à 95 %** par **bootstrap par grappes** (on rééchantillonne les tâches / gabarits, pas les étapes, car les étapes d'une même trajectoire sont dépendantes).
@@ -247,12 +303,18 @@ L'**accuracy** n'est pas utilisée comme critère de sélection.
 | L6 | Quasi-doublons entre plis | déduplication ou regroupement avant le split | stat : similarité max train–test |
 | L7 | Normalisation au niveau trajectoire (stats sur toute la trajectoire) | stats cumulées jusqu'à t seulement | inclus dans L3 |
 | L8 | Sur-réglage sur ATBench | ATBench jamais utilisé pour choisir quoi que ce soit | revue de code |
+| L9 | Identité du monde (noms, sociétés, adresses) | anonymisation avant tout modèle | baseline « recherche du monde » au hasard après anonymisation |
+| L10 | Préfixes d'injection propres à chaque catégorie | masquage (H3) | rapport : performance avec et sans masquage |
+| L11 | `obs_t` et `thought` (effet déjà exécuté, raisonnement qui avoue) | vues strictes ; variante sans `thought` = référence | test : modifier `obs_t` ne change pas les variables de t |
+| L12 | Métadonnées du générateur (`category`, `source_category`, `compliance`, `attack_type`, `world_id`, `expected_tools`) | jamais en entrée ; seulement groupes, strates, oracle | test : aucune de ces colonnes dans la matrice de variables |
 
 ---
 
 ## 10. Modes d'échec attendus (à discuter dans le rapport)
 - **Attaques retardées** : l'injection arrive tôt mais l'action dangereuse est tardive ; les modèles par étape les ratent (≈ 33 % à 0,2 % de FPR en pré-analyse).
-- **Attaques partielles** : une partie seulement des arguments est détournée (destinataire modifié dans un envoi légitime).
+- **Attaques partielles** : une partie seulement des arguments est détournée (destinataire ajouté dans un envoi légitime, souvent **du même domaine** que l'utilisateur) ; le test « adresse externe » ne les voit pas.
+- **Injections invisibles** : le point d'injection étiqueté ne contient aucune consigne lisible (≈ 95 % des partielles et retardées selon les mots-clés) ; le scanner est aveugle, seule la cohérence tâche ↔ action peut aider. Les 9 faux négatifs sur 12 de DriftNet ont la même cause.
+- **Tentatives résistées** : le scanner les signale (positif `y_scan`) alors que l'agent n'a rien fait ; coût de revue humaine à discuter.
 - **Transfert de seuil** : un seuil réglé sur un domaine donne un autre FPR ailleurs (H5).
 - **Style du générateur** : bonne performance sur AgentDrift, chute sur ATBench.
 - **Négatifs difficiles** : contenus bénins à ton impératif (procédures, tickets internes), injections échouées.

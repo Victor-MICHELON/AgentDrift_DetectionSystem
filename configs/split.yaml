@@ -1,8 +1,10 @@
 # Evaluation protocol (CONTEXT.md section 8.1).
 seed: 42
-group_key: null        # task template column, set after the schema audit
-domain_key: null       # domain column, set after the schema audit
-fixed_test: true       # keep the dataset's 35-task test set untouched
+group_key: task        # task template string (250 templates; maps to task_id via pools/*_tasks.json)
+domain_key: agent      # email | banking | web | coding | medical
+strata: [source_category, agent]   # stratification only, never model inputs
+fixed_test: true       # data_taskdisjoint/test.jsonl = 35 templates, 1,722 trajectories, untouched
+                       # train + val merged (215 templates) for the grouped CV below
 outer_folds: 5         # StratifiedGroupKFold by task template
 inner_folds: 3         # nested CV for tuning and calibration
 leave_one_domain_out: true

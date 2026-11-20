@@ -1,0 +1,23 @@
+,measure,19/11,recomputed,definition used
+0,"position only → y_gate, ROC-AUC",0.754,0.779,"train rate per t, scored on val"
+1,"position only → y_scan, ROC-AUC",0.52,0.876,"train rate per t, scored on val"
+2,"world lookup → y_traj, F1",0.77,0.838,"train world majority, scored on val"
+3,"tool outside expected_tools, H full",0.69–0.81,0.691,"oracle, step level"
+4,"tool outside expected_tools, H delayed",0.69–0.81,0.811,"oracle, step level"
+5,"tool outside expected_tools, H partial",0.40,0.402,"oracle, step level"
+6,"tool outside expected_tools, B",0.24–0.32,0.313,"oracle, step level"
+7,"external-domain address in args, H full",0.43,0.429,address domain ≠ user domain
+8,"external-domain address in args, H delayed",0.15,0.147,address domain ≠ user domain
+9,"external-domain address in args, H partial",0.04,0.043,address domain ≠ user domain
+10,"external-domain address in args, B",0.02,0.022,address domain ≠ user domain
+11,"arg from previous obs, all H",0.32,0.461,"leaf value ≥ 4 chars in obs_<t, not in task"
+12,"arg from previous obs, B",0.16,0.189,"leaf value ≥ 4 chars in obs_<t, not in task"
+13,"instruction vocabulary at injection, full",0.996,0.998,"INSTRUCTION_RE, prefixes excluded"
+14,"instruction vocabulary at injection, failed",0.795,0.826,"INSTRUCTION_RE, prefixes excluded"
+15,"instruction vocabulary at injection, partial",0.047,0.35,"INSTRUCTION_RE, prefixes excluded"
+16,"instruction vocabulary at injection, delayed",0.07,0.101,"INSTRUCTION_RE, prefixes excluded"
+17,"external address or URL at injection, partial",0.13–0.21,0.124,URL or address domain ≠ user domain
+18,"external address or URL at injection, delayed",0.13–0.21,0.152,URL or address domain ≠ user domain
+19,"confession words in thought, H partial",0.445,0.753,CONFESSION_RE
+20,"confession words in thought, B of failed attacks",0.21,0.214,CONFESSION_RE
+21,"mean length, attacked vs other",6.07 vs 5.44,5.93 vs 5.45,mean n_steps

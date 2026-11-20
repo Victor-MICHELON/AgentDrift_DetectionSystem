@@ -18,6 +18,7 @@ python3.12 -m venv .venv
 source .venv/bin/activate          # fish: source .venv/bin/activate.fish
 pip install -r requirements.txt
 pip install -e . --no-deps         # makes `import agentdrift` work everywhere
+python -m ipykernel install --user --name agentdrift --display-name "Python 3.12 (agentdrift)"  # notebook kernel
 pytest
 ```
 
@@ -41,7 +42,9 @@ macOS: LightGBM and XGBoost need OpenMP → `brew install libomp`.
 
 | Result | Command |
 |---|---|
-| Data audit | `python -m agentdrift.pipelines.run_audit` |
+| Data download + checksums | `python -m agentdrift.data.download --atbench` |
+| Interim tables (parse + validate) | `python -m agentdrift.data.load` |
+| EDA part A (tables, metrics, figures) | `python -m agentdrift.pipelines.run_eda` · notebook `notebooks/01_eda.ipynb` |
 | v0.1 baseline | `python -m agentdrift.pipelines.run_baseline` |
 
 More commands are added with each new pipeline.
