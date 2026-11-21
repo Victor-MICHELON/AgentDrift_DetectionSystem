@@ -1,0 +1,323 @@
+{
+  "run": {
+    "date": "2026-11-21T15:20:15+00:00",
+    "seed": 42,
+    "git": "f44c571"
+  },
+  "config": {
+    "max_history_steps": null,
+    "max_history_chars": 4000,
+    "max_field_chars": 2000,
+    "max_content_chars": null
+  },
+  "views": {
+    "scanner": {
+      "seconds": 24.8,
+      "rows": 58488,
+      "history": {
+        "chars_mean": 407.2,
+        "chars_p50": 350.0,
+        "chars_p90": 840.0,
+        "chars_p99": 1174.0,
+        "chars_max": 2005,
+        "steps_mean": 3.1,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {
+        "scanner_first_step_skipped": 12536
+      },
+      "prevalence_split": {
+        "train": {
+          "rows": 42426,
+          "positives": 5097,
+          "prevalence": 0.1201385943
+        },
+        "val": {
+          "rows": 7988,
+          "positives": 946,
+          "prevalence": 0.1184276415
+        },
+        "test": {
+          "rows": 8074,
+          "positives": 993,
+          "prevalence": 0.1229873669
+        },
+        "all": {
+          "rows": 58488,
+          "positives": 7036,
+          "prevalence": 0.1202981808
+        }
+      },
+      "prevalence_domain": {
+        "banking": {
+          "rows": 9498,
+          "positives": 1036,
+          "prevalence": 0.1090755949
+        },
+        "coding": {
+          "rows": 12217,
+          "positives": 1500,
+          "prevalence": 0.1227797332
+        },
+        "email": {
+          "rows": 12386,
+          "positives": 1500,
+          "prevalence": 0.1211044728
+        },
+        "medical": {
+          "rows": 12195,
+          "positives": 1500,
+          "prevalence": 0.12300123
+        },
+        "web": {
+          "rows": 12192,
+          "positives": 1500,
+          "prevalence": 0.1230314961
+        },
+        "all": {
+          "rows": 58488,
+          "positives": 7036,
+          "prevalence": 0.1202981808
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_scan": 5097,
+          "eda_y_scan_prevalence": 0.099,
+          "expected_rows": 42426,
+          "view_rows": 42426,
+          "view_positives": 5097,
+          "view_prevalence": 0.1201,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_scan": 946,
+          "eda_y_scan_prevalence": 0.0973,
+          "expected_rows": 7988,
+          "view_rows": 7988,
+          "view_positives": 946,
+          "view_prevalence": 0.1184,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_scan": 993,
+          "eda_y_scan_prevalence": 0.1014,
+          "expected_rows": 8074,
+          "view_rows": 8074,
+          "view_positives": 993,
+          "view_prevalence": 0.123,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_scan": 7036,
+          "eda_y_scan_prevalence": 0.0991,
+          "expected_rows": 58488,
+          "view_rows": 58488,
+          "view_positives": 7036,
+          "view_prevalence": 0.1203,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      }
+    },
+    "scanner_thought": {
+      "seconds": 44.2,
+      "rows": 58488,
+      "history": {
+        "chars_mean": 670.9,
+        "chars_p50": 580.0,
+        "chars_p90": 1334.0,
+        "chars_p99": 1812.0,
+        "chars_max": 2649,
+        "steps_mean": 3.1,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {
+        "scanner_first_step_skipped": 12536
+      },
+      "prevalence_split": {
+        "train": {
+          "rows": 42426,
+          "positives": 5097,
+          "prevalence": 0.1201385943
+        },
+        "val": {
+          "rows": 7988,
+          "positives": 946,
+          "prevalence": 0.1184276415
+        },
+        "test": {
+          "rows": 8074,
+          "positives": 993,
+          "prevalence": 0.1229873669
+        },
+        "all": {
+          "rows": 58488,
+          "positives": 7036,
+          "prevalence": 0.1202981808
+        }
+      }
+    },
+    "gate": {
+      "seconds": 47.6,
+      "rows": 71024,
+      "history": {
+        "chars_mean": 417.8,
+        "chars_p50": 387.0,
+        "chars_p90": 883.0,
+        "chars_p99": 1245.0,
+        "chars_max": 2078,
+        "steps_mean": 2.55,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {},
+      "prevalence_split": {
+        "train": {
+          "rows": 51507,
+          "positives": 8947,
+          "prevalence": 0.173704545
+        },
+        "val": {
+          "rows": 9721,
+          "positives": 1647,
+          "prevalence": 0.1694270137
+        },
+        "test": {
+          "rows": 9796,
+          "positives": 1755,
+          "prevalence": 0.179154757
+        },
+        "all": {
+          "rows": 71024,
+          "positives": 12349,
+          "prevalence": 0.1738708042
+        }
+      },
+      "prevalence_domain": {
+        "banking": {
+          "rows": 11634,
+          "positives": 1170,
+          "prevalence": 0.1005673027
+        },
+        "coding": {
+          "rows": 14817,
+          "positives": 2808,
+          "prevalence": 0.189512047
+        },
+        "email": {
+          "rows": 14986,
+          "positives": 2862,
+          "prevalence": 0.1909782464
+        },
+        "medical": {
+          "rows": 14795,
+          "positives": 2758,
+          "prevalence": 0.1864143292
+        },
+        "web": {
+          "rows": 14792,
+          "positives": 2751,
+          "prevalence": 0.1859789075
+        },
+        "all": {
+          "rows": 71024,
+          "positives": 12349,
+          "prevalence": 0.1738708042
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_gate": 8947,
+          "eda_y_gate_prevalence": 0.1737,
+          "expected_rows": 51507,
+          "view_rows": 51507,
+          "view_positives": 8947,
+          "view_prevalence": 0.1737,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_gate": 1647,
+          "eda_y_gate_prevalence": 0.1694,
+          "expected_rows": 9721,
+          "view_rows": 9721,
+          "view_positives": 1647,
+          "view_prevalence": 0.1694,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_gate": 1755,
+          "eda_y_gate_prevalence": 0.1792,
+          "expected_rows": 9796,
+          "view_rows": 9796,
+          "view_positives": 1755,
+          "view_prevalence": 0.1792,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_gate": 12349,
+          "eda_y_gate_prevalence": 0.1739,
+          "expected_rows": 71024,
+          "view_rows": 71024,
+          "view_positives": 12349,
+          "view_prevalence": 0.1739,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      }
+    },
+    "gate_thought": {
+      "seconds": 23.8,
+      "rows": 71024,
+      "history": {
+        "chars_mean": 634.9,
+        "chars_p50": 562.0,
+        "chars_p90": 1359.0,
+        "chars_p99": 1867.0,
+        "chars_max": 2738,
+        "steps_mean": 2.55,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {},
+      "prevalence_split": {
+        "train": {
+          "rows": 51507,
+          "positives": 8947,
+          "prevalence": 0.173704545
+        },
+        "val": {
+          "rows": 9721,
+          "positives": 1647,
+          "prevalence": 0.1694270137
+        },
+        "test": {
+          "rows": 9796,
+          "positives": 1755,
+          "prevalence": 0.179154757
+        },
+        "all": {
+          "rows": 71024,
+          "positives": 12349,
+          "prevalence": 0.1738708042
+        }
+      }
+    }
+  }
+}
