@@ -45,6 +45,7 @@ macOS: LightGBM and XGBoost need OpenMP → `brew install libomp`.
 | Data download + checksums | `python -m agentdrift.data.download --atbench` |
 | Interim tables (parse + validate) | `python -m agentdrift.data.load` |
 | EDA part A (tables, metrics, figures) | `python -m agentdrift.pipelines.run_eda` · notebook `notebooks/01_eda.ipynb` |
+| Scanner / gate views (B.1) | `python -m agentdrift.pipelines.build_views [--include-test]` → `data/processed/views/`, summary in `results/runs/views/` |
 | v0.1 baseline | `python -m agentdrift.pipelines.run_baseline` |
 
 More commands are added with each new pipeline.
