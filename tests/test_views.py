@@ -496,7 +496,7 @@ def test_read_view_roundtrip_keeps_types_and_hides_test(toy, tmp_path, monkeypat
     monkeypatch.setattr(V, "VIEWS_DIR", tmp_path)
     steps, traj = toy
     gate = build_gate_view(steps, traj)
-    gate.to_parquet(V.view_path("gate"), index=False)
+    V.write_view(gate, "gate")  # records the text variant (KAN-60); a plain to_parquet is refused on read
     pd.testing.assert_frame_equal(V.read_view("gate"), gate, check_like=False)
     assert V.view_path("scanner", include_thought=True, test=True).name == "scanner_thought_test.parquet"
     with pytest.raises(FileNotFoundError, match="--include-test"):

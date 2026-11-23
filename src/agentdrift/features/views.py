@@ -22,8 +22,16 @@ Granularity: one row per decision point, key (trajectory_id, step).
 in the history and, for the gate only, adds thought_t (written before a_t) as `proposed_call_thought`.
 
 The views are deterministic and fit nothing: anything learned (vocabulary, scaling) belongs to the
-feature extractors of B.2+ and is fitted on the training fold only (L2). They contain raw text: masking
-of generator artefacts (H3, L9, L10) is applied downstream by `features/masking.py` (B.4).
+feature extractors of B.2+ and is fitted on the training fold only (L2). `build_view` copies the text of the
+tables it receives; the text variant is chosen upstream (KAN-60, `pipelines/build_views.py`):
+
+    anon    world-anonymised tables (`read_*(anonymized=True)`, leak L9): the DEFAULT, the only input of models
+    masked  anonymised tables + generator-artefact masking (`features/masking.mask_tables`, H3 / L10), applied to
+            the TABLES before the views because amounts are numbered in the temporal order of the trajectory
+    raw     original text, world identity included: H3 ablation ladder only (KAN-19), never a default
+
+Persisted views carry their variant in the Parquet metadata (`write_view`), and `read_view` refuses a file whose
+variant is missing or different: a stale view built on raw text can never be read as the anonymised one.
 
 Output columns (see `output_columns`):
     keys        trajectory_id (str), step (int64)
@@ -502,17 +510,82 @@ def build_views(
 # ----------------------------------------------------------------------------- persisted views
 
 
-def view_path(view: View, include_thought: bool = False, test: bool = False) -> Path:
-    """data/processed/views/<view>[_thought][_test].parquet (dev = train + val; test = fixed test set)."""
+TextVariant = Literal["anon", "masked", "raw"]
+TEXT_VARIANTS: tuple[TextVariant, ...] = ("anon", "masked", "raw")
+DEFAULT_TEXT: TextVariant = "anon"
+Dataset = Literal["agentdrift", "atbench"]
+METADATA_KEY = b"agentdrift.view"  # Parquet schema metadata: {"view", "include_thought", "text", "dataset"}
+
+
+class StaleViewError(ValueError):
+    """A persisted view whose text variant is not recorded or not the one requested (rebuild it)."""
+
+
+def _check_text(text: str) -> None:
+    if text not in TEXT_VARIANTS:
+        raise ValueError(f"text must be one of {TEXT_VARIANTS}, got {text!r}")
+
+
+def view_path(view: View, include_thought: bool = False, test: bool = False, text: TextVariant = DEFAULT_TEXT,
+              dataset: Dataset = "agentdrift") -> Path:
+    """data/processed/views/[atbench_]<view>[_thought][_masked|_raw][_test].parquet.
+
+    dev = train + val, test = fixed test set (AgentDrift only); the anonymised variant has no suffix."""
     _check_view(view)
-    return VIEWS_DIR / f"{view}{'_thought' if include_thought else ''}{'_test' if test else ''}.parquet"
+    _check_text(text)
+    if dataset not in ("agentdrift", "atbench"):
+        raise ValueError(f"unknown dataset {dataset!r}")
+    if dataset == "atbench" and test:
+        raise ValueError("ATBench has no fixed test split: it is external as a whole")
+    name = (f"{'atbench_' if dataset == 'atbench' else ''}{view}{'_thought' if include_thought else ''}"
+            f"{'' if text == DEFAULT_TEXT else '_' + text}{'_test' if test else ''}")
+    return VIEWS_DIR / f"{name}.parquet"
 
 
-def read_view(view: View, include_thought: bool = False, include_test: bool = False) -> pd.DataFrame:
-    """A view written by `build_views`. The fixed test set is excluded unless include_test=True (L5)."""
-    paths = [view_path(view, include_thought)] + ([view_path(view, include_thought, test=True)] if include_test else [])
+def _view_metadata(view: str, include_thought: bool, text: str, dataset: str) -> bytes:
+    return json.dumps({"view": view, "include_thought": include_thought, "text": text, "dataset": dataset},
+                      sort_keys=True).encode()
+
+
+def write_view(df: pd.DataFrame, view: View, include_thought: bool = False, test: bool = False,
+               text: TextVariant = DEFAULT_TEXT, dataset: Dataset = "agentdrift") -> Path:
+    """Write a view with its variant recorded in the Parquet metadata (read back and checked by `read_view`)."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    path = view_path(view, include_thought, test, text, dataset)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    table = pa.Table.from_pandas(df.reset_index(drop=True), preserve_index=False)
+    meta = {**(table.schema.metadata or {}), METADATA_KEY: _view_metadata(view, include_thought, text, dataset)}
+    pq.write_table(table.replace_schema_metadata(meta), path)
+    return path
+
+
+def _check_metadata(path: Path, expected: bytes) -> None:
+    import pyarrow.parquet as pq
+
+    found = (pq.read_schema(path).metadata or {}).get(METADATA_KEY)
+    if found is None:
+        raise StaleViewError(f"{path} has no text-variant metadata (built before KAN-60, possibly on raw text): "
+                             "rebuild it with `python -m agentdrift.pipelines.build_views`")
+    if json.loads(found) != json.loads(expected):
+        raise StaleViewError(f"{path} holds {json.loads(found)}, expected {json.loads(expected)}: rebuild the views")
+
+
+def read_view(view: View, include_thought: bool = False, include_test: bool = False,
+              text: TextVariant = DEFAULT_TEXT, dataset: Dataset = "agentdrift") -> pd.DataFrame:
+    """A view written by `build_views`; default = anonymised text without thought (the only model input).
+
+    The fixed test set is excluded unless include_test=True (L5). The variant recorded in each file must match
+    (`StaleViewError` otherwise)."""
+    paths = [view_path(view, include_thought, text=text, dataset=dataset)]
+    if include_test:
+        paths.append(view_path(view, include_thought, test=True, text=text, dataset=dataset))
     for path in paths:
         if not path.exists():
-            hint = " --include-test" if path.name.endswith("_test.parquet") else ""
-            raise FileNotFoundError(f"{path} missing: run `python -m agentdrift.pipelines.build_views{hint}` first")
+            flags = (" --include-test" if path.name.endswith("_test.parquet") else "") + \
+                    (" --raw" if text == "raw" and dataset == "agentdrift" else "") + \
+                    (" --atbench" if dataset == "atbench" else "")
+            raise FileNotFoundError(f"{path} missing: run `python -m agentdrift.pipelines.build_views{flags}` first")
+        _check_metadata(path, _view_metadata(view, include_thought, text, dataset))
     return pd.concat([pd.read_parquet(p) for p in paths], ignore_index=True)
