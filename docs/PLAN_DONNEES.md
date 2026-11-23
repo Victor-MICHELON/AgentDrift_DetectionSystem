@@ -18,7 +18,7 @@
 | 6 | Annotations manuelles (risque des outils, `injection_visible`) | enrichissement | 🔄 brouillons prêts (21/11), relecture humaine à faire |
 | **7** | **EDA, partie B : effet du prétraitement** | analyse | 🔄 anonymisation faite (22/11) ; masquage (KAN-19) et annotations (KAN-58) en attente |
 | 8 | Splits groupés + `folds.parquet` | protocole | ✅ fait (20/11) |
-| **9** | **EDA, partie C : protocole d'évaluation + synthèse** | analyse | à faire |
+| **9** | **EDA, partie C : protocole d'évaluation + synthèse** | analyse | ✅ fait (23/11) |
 | 10 | Tests anti-fuite | protocole | 🔄 en grande partie couvert (20/11) ; reste L12 (attend `features/views.py`) |
 | 11 | Adaptateur ATBench → schéma d'étapes (`data/external.py`) | mise en forme | à faire (avant la phase 4) |
 
@@ -77,10 +77,10 @@ Fait le 20/11 : `notebooks/01_eda.ipynb` (≈ 12 s, VS Code, interpréteur `.ven
 - `src/agentdrift/pipelines/run_eda.py` — régénère `results/runs/eda/metrics.json` et toutes les figures sans le notebook.
 - Figures retenues exportées en PDF dans `report/latex/figures/`.
 
-### Règles de présentation
-- Chaque section : **question → figure → constats clés → conséquence pour le projet** (décision de prétraitement, fuite, hypothèse H1–H8).
-- **Aucun chiffre écrit en dur** : chaque valeur citée vient d'une cellule calculée (les mesures du 19/11 sont reproduites ou corrigées).
-- Aucune logique métier dans le notebook ; « Restart & Run All » en quelques minutes ; enregistré avec ses sorties.
+### Règles de présentation (révisées le 23/11, valables pour les trois notebooks EDA)
+- Notebooks **de présentation** des données et de leur préparation : chaque section suit **pourquoi c'est important pour le garde-fou → figure → table lisible → ce qu'on voit → ce qu'on en fait**, en langage clair relié au projet. Les codes internes (fuites L…, hypothèses H…) ne figurent qu'en note de traçabilité en bas de section.
+- **Explications en cellules Markdown**, jamais du code qui affiche du texte. Les chiffres cités sont donc écrits à la main ; la **dernière cellule** (code replié) les recalcule tous et arrête le notebook si l'un d'eux ne correspond plus aux données (`viz/notebook.py::check`). Toute modification des données ou du code impose de réexécuter et de corriger le texte signalé.
+- Aucune logique métier dans le notebook (calculs dans `data/audit.py`, figures dans `viz/plots.py`) ; « Restart & Run All » en quelques minutes ; enregistré avec ses sorties ; titres des figures identiques à ceux de `run_eda`.
 - Le test fixe n'oriente aucun choix : statistiques descriptives par partie (train / val / test côte à côte), baselines « raccourci » ajustées sur train et évaluées sur val.
 
 ### Sections
@@ -169,11 +169,20 @@ Résultat (20/11) :
 
 Parts de catégories et de domaines à ± 2 points entre plis ; aucun gabarit dans deux plis (L1). 1 060 des 1 136 mondes de dev apparaissent dans plusieurs plis : attendu (on ne peut pas grouper à la fois par gabarit et par monde, JOURNAL 19/11), d'où l'anonymisation obligatoire. Les plis par monde ont une prévalence plus variable (`y_traj` 39,6–49,5 %), conséquence de la pureté des mondes (EDA A8).
 
-## Étape 9 — EDA, partie C : protocole et synthèse
+## Étape 9 — EDA, partie C : protocole et synthèse ✅
 
-- Prévalence et taille par pli ; absence de gabarit partagé.
-- Taille du test fixe et largeur attendue des IC (bootstrap groupé).
-- **Tableau de synthèse** : constat → décision (prétraitement ou protocole) → hypothèse. Diapositive de conclusion de la présentation.
+Fait le 23/11 : `notebooks/03_eda_protocol.ipynb`, `python -m agentdrift.pipelines.run_eda --part C` (≈ 5 s, `results/runs/eda_c/`, figures `eda_c1`–`eda_c3`). Calculs dans `data/audit.py` (section « part C »). Bootstrap par gabarit dans `evaluation/bootstrap.py` (vectorisé, testé contre sklearn dans `tests/test_bootstrap.py`, réutilisable par le Lot D). **Règle L5 :** le test fixe ne fournit que des effectifs ; les largeurs d'IC sont mesurées sur les plis de dev avec un score de référence sans contenu (outil × position × domaine, ajusté hors pli), qui n'est pas un modèle du projet.
+
+| § | Contenu | Résultat (23/11) |
+|---|---|---|
+| C1 | Taille et prévalence par pli ; plis par gabarit vs plis par monde | écarts de parts ≤ 1,2 point, `y_traj` à ± 1,4 point ; plis par monde : 9,9 points. Prévalence du test dans la fourchette des plis |
+| C2 | Ce que les plis partagent | 0 gabarit partagé (plis, dev / test) ; 1 060 / 1 136 mondes partagés ; 99,6 % des trajectoires du test dans un monde vu en dev ; ≈ 50 trajectoires par gabarit |
+| C3 | Domaine exclu | banking à part : 34 % d'attaques (46 % ailleurs), `y_gate` 9,8 % (18,8 %). À lire avec la prévalence du domaine exclu |
+| C4 | Faux positifs attendus aux FPR cibles | 1 % : ≥ 71 partout. 0,2 % : 16 (portail) / 14 (scanner) sur le test, ≈ 27 sur une partie de validation interne |
+| C5 | Largeur attendue des IC à 95 % (bootstrap par gabarit) | sur 35 gabarits, portail : ± 0,07 PR-AUC, ± 0,07 rappel à 1 % (score de référence, PR-AUC 0,61) ; effet de plan 5 à 16 ; à 0,2 %, les plis varient ≈ 2 × plus que le bootstrap à seuil fixe (variabilité du seuil non couverte) ; seuil à 1 % → 0,17–1,97 % observé sur le pli suivant |
+| C6 | Tableau de synthèse constat → décision → hypothèse | 14 lignes : 8 appliquées, 2 en cours, 3 décidées dans CONTEXT, 1 proposée (0,2 % comme point secondaire) |
+
+Le tableau C6 lit les `metrics.json` des parties A et B : relancer `--part A` et `--part B` avant `--part C` si elles changent. La colonne `status` est tenue à la main (`audit.SYNTHESIS_STATUS`).
 
 ## Étape 10 — Tests anti-fuite (`tests/test_splits.py`, `tests/test_data.py`)
 
@@ -204,3 +213,4 @@ Il reste donc un seul test propre au Lot A (L12), qui dépend d'une interface du
 1. `y_traj` : `category == attacked` (provisoire) ?
 2. ~~Anonymisation dans `data/`, masquage H3 dans `features/`~~ — appliqué le 20/11 (à confirmer en équipe).
 3. Relecteur de `tool_risk.yaml` et de `injection_visible.csv` ?
+4. **Proposé par l'EDA C (23/11)** : 1 % de FPR par étape comme point de fonctionnement principal ; 0,2 % rapporté comme point secondaire, toujours avec le FPR observé et sa dispersion sur les plis (≈ 15 faux positifs attendus sur le test). Résultats au seuil rapportés aussi en moyenne ± écart-type sur les plis, car l'IC bootstrap à seuil fixe ne couvre pas la variabilité du seuil.

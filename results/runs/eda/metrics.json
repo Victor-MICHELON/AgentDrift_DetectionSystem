@@ -1,8 +1,8 @@
 {
   "run": {
-    "date": "2026-11-22T11:12:43+00:00",
+    "date": "2026-11-23T09:57:17+00:00",
     "seed": 42,
-    "git": "1b95e2e-dirty"
+    "git": "236c2e2-dirty"
   },
   "overview": {
     "n_trajectories": 12536,

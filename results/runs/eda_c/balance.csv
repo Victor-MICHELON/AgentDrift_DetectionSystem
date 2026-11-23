@@ -1,0 +1,6 @@
+,template folds,world folds
+max gap of a category share to the dev mean (pts),1.241276599620253,4.704411892380603
+max gap of a domain share to the dev mean (pts),1.1933586635516384,7.728268247025596
+y_traj range across folds (pts),1.4127976641656659,9.893666204345813
+y_gate range across folds (pts),1.2527905460832656,4.773099371063571
+y_scan range across folds (pts),0.2171623160587957,1.3294487010158549

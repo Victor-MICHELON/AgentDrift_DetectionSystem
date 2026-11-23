@@ -1,12 +1,15 @@
 """Headless EDA: recompute every table and figure of the EDA notebooks.
 
-    python -m agentdrift.pipelines.run_eda             # parts A and B
+    python -m agentdrift.pipelines.run_eda             # parts A, B and C
     python -m agentdrift.pipelines.run_eda --part A    # raw data (notebooks/01_eda.ipynb)
     python -m agentdrift.pipelines.run_eda --part B    # effect of the preprocessing (notebooks/02_eda_preprocessing.ipynb)
+    python -m agentdrift.pipelines.run_eda --part C    # evaluation protocol + synthesis (notebooks/03_eda_protocol.ipynb)
 
-Writes results/runs/eda/ (part A) and results/runs/eda_b/ (part B): metrics.json + the tables as CSV; figures to
-results/figures/ (PNG) and report/latex/figures/ (PDF). Requires `python -m agentdrift.data.load` (and
-`python -m agentdrift.data.anonymize` for part B) first.
+Writes results/runs/eda/ (part A), results/runs/eda_b/ (part B) and results/runs/eda_c/ (part C): metrics.json +
+the tables as CSV; figures to results/figures/ (PNG) and report/latex/figures/ (PDF). Requires
+`python -m agentdrift.data.load` (and `python -m agentdrift.data.anonymize` for part B,
+`python -m agentdrift.splits.grouped` for part C) first. The synthesis of part C reads the metrics.json of
+parts A and B: run them first.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from agentdrift.config import ROOT, RUNS  # noqa: E402
+from agentdrift.config import ROOT, RUNS, load_config  # noqa: E402
 from agentdrift.data import annotations as N  # noqa: E402
 from agentdrift.data import audit as A  # noqa: E402
 from agentdrift.utils.seed import set_seed  # noqa: E402
@@ -30,6 +33,8 @@ from agentdrift.viz import plots as P  # noqa: E402
 
 OUT = RUNS / "eda"
 OUT_B = RUNS / "eda_b"
+OUT_C = RUNS / "eda_c"
+INTERVAL_METRICS = ["roc_auc", "pr_auc", "recall@1%", "recall@0.2%"]
 
 
 def compute(d: dict) -> dict:
@@ -94,15 +99,15 @@ def figures(r: dict, d: dict) -> dict:
         "eda_a4_injection_gap": P.plot_injection_and_gap(r["injection_position"], r["gap"]),
         "eda_a5_tools": P.plot_tools(r["tool_table"]),
         "eda_a5_out_of_expected": P.plot_share_bars(
-            oox, "Proposed tool outside the template's expected tools (oracle)", "share of steps"),
+            oox, "Proposed tool outside the tools the task needs", "share of steps"),
         "eda_a6_prefixes": P.plot_table_heatmap(
-            r["prefixes"], "Injection openers: share of observations containing each prefix", width=9.5),
+            r["prefixes"], "Injection openers: share of poisoned responses containing each one", width=9.5),
         "eda_a6_visibility": P.plot_table_heatmap(
-            r["visibility"].drop(columns="n"), "How readable is the injection in the poisoned observation?", width=8.5),
+            r["visibility"].drop(columns="n"), "How readable is the injection in the poisoned response?", width=8.5),
         "eda_a6_confession": P.plot_table_heatmap(
-            conf, "Confession vocabulary in the generated thought (share of steps)", width=7, fmt="{:.0%}"),
+            conf, "Confession words in the agent's reasoning (share of steps)", width=7, fmt="{:.0%}"),
         "eda_a7_provenance": P.plot_table_heatmap(
-            r["provenance"].drop(columns="n"), "Argument provenance of the proposed action a_t (share of steps)",
+            r["provenance"].drop(columns="n"), "Where do the arguments of the proposed action come from? (share of steps)",
             width=9.5),
         "eda_a8_world_purity": P.plot_world_purity(r["world_purity"]),
         "eda_a8_shortcuts": P.plot_shortcuts(r["shortcuts"]),
@@ -148,6 +153,35 @@ def figures_b(rb: dict) -> dict:
             rb["visible_vs_heuristic"][["visible (human)", "visible (regex union)", "agreement"]],
             "Is the injection visible? Human annotation vs regex union")
     return figs
+
+
+def compute_c(dp: dict, seed: int = A.SEED) -> dict:
+    """All tables of part C (dp = A.load_inputs_protocol()). The synthesis reads the saved outputs of A and B."""
+    boot = load_config("split")["bootstrap"]
+    grouping = A.grouping_checks(dp)
+    rc = {
+        "folds": A.fold_table(dp),
+        "balance": A.fold_balance(dp),
+        "fold_prevalence": A.fold_prevalence(dp),
+        "grouping": grouping,
+        "lodo": A.lodo_table(dp),
+        "resolution": A.resolution_table(dp),
+        "intervals": A.compute_protocol_intervals(dp, grouping["test_templates"], boot["n_resamples"], seed),
+        "bootstrap": boot,
+    }
+    missing = [p for p in (OUT / "metrics.json", OUT_B / "metrics.json") if not p.exists()]
+    rc["synthesis"] = None if missing else A.synthesis_table(
+        json.loads((OUT / "metrics.json").read_text()), json.loads((OUT_B / "metrics.json").read_text()), rc)
+    return rc
+
+
+def figures_c(rc: dict) -> dict:
+    return {
+        "eda_c1_fold_prevalence": P.plot_fold_prevalence(rc["fold_prevalence"]),
+        "eda_c2_resolution": P.plot_resolution(rc["resolution"], "0.2%", A.MIN_FALSE_POSITIVES),
+        "eda_c3_interval_widths": P.plot_interval_widths(
+            {t: v["summary"] for t, v in rc["intervals"].items()}, INTERVAL_METRICS),
+    }
 
 
 def _git_hash() -> str:
@@ -213,17 +247,47 @@ def run_b(d: dict, seed: int) -> None:
         print("Pending:", ", ".join(pending))
 
 
+def run_c(seed: int) -> None:
+    rc = compute_c(A.load_inputs_protocol(), seed)
+    OUT_C.mkdir(parents=True, exist_ok=True)
+    tables = {"folds": rc["folds"], "balance": rc["balance"], "lodo": rc["lodo"], "resolution": rc["resolution"]}
+    for t, v in rc["intervals"].items():
+        tables[f"intervals_{t}"] = v["summary"]
+        tables[f"intervals_by_fold_{t}"] = v["widths"]
+        tables[f"threshold_transfer_{t}"] = v["transfer"]
+    if rc["synthesis"] is not None:
+        tables["synthesis"] = rc["synthesis"]
+    metrics = {
+        "run": {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": seed, "git": _git_hash()},
+        "grouping": rc["grouping"], "bootstrap": rc["bootstrap"],
+        **{k: _jsonable(v) for k, v in tables.items() if not k.startswith(("intervals_by_fold", "threshold"))},
+    }
+    (OUT_C / "metrics.json").write_text(json.dumps(metrics, indent=2, default=str))
+    for k, v in tables.items():
+        v.to_csv(OUT_C / f"{k}.csv")
+    for name, fig in figures_c(rc).items():
+        P.save(fig, name)
+        plt.close(fig)
+    print(f"EDA part C written to {OUT_C.relative_to(ROOT)}")
+    print(rc["intervals"]["y_gate"]["summary"].round(3).to_string())
+    if rc["synthesis"] is None:
+        print("Synthesis skipped: run parts A and B first.")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Recompute the EDA tables and figures.")
-    parser.add_argument("--part", choices=["A", "B", "all"], default="all")
+    parser.add_argument("--part", choices=["A", "B", "C", "all"], default="all")
     args = parser.parse_args(argv)
     seed = set_seed()
     P.setup()
-    d = A.load_inputs()
-    if args.part in ("A", "all"):
-        run_a(d, seed)
-    if args.part in ("B", "all"):
-        run_b(d, seed)
+    if args.part in ("A", "B", "all"):
+        d = A.load_inputs()
+        if args.part in ("A", "all"):
+            run_a(d, seed)
+        if args.part in ("B", "all"):
+            run_b(d, seed)
+    if args.part in ("C", "all"):
+        run_c(seed)
     return 0
 
 

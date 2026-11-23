@@ -448,3 +448,97 @@ def plot_provenance_before_after(table: pd.DataFrame) -> plt.Figure:
                  fontweight="bold", fontsize=11)
     fig.tight_layout()
     return fig
+
+
+# --------------------------------------------------------------------------- part C: evaluation protocol
+
+
+SPLIT_COLORS = {"template folds": SERIES[0], "world folds": SERIES[1]}
+TARGET_NAMES = {"y_traj": "y_traj (trajectory)", "y_gate": "y_gate (step)", "y_scan": "y_scan (step)"}
+
+
+def plot_fold_prevalence(fp: pd.DataFrame) -> plt.Figure:
+    """Prevalence per dev fold, template folds (protocol) against world folds (control), one panel per target."""
+    targets = [t for t in TARGET_NAMES if t in set(fp["target"])]
+    fig, axes = plt.subplots(1, len(targets), figsize=(11, 2.8))
+    for ax, t in zip(np.atleast_1d(axes), targets):
+        sub = fp[fp["target"] == t]
+        for k, (split, color) in enumerate(SPLIT_COLORS.items()):
+            s = sub[sub["split"] == split].sort_values("fold")
+            ax.plot(s["fold"] + (k - 0.5) * 0.12, s["prevalence"], "o", color=color, markersize=6, label=split)
+        ax.set_title(TARGET_NAMES[t], fontsize=10)
+        ax.set_xticks(sorted(sub["fold"].unique()))
+        ax.set_xlabel("fold")
+        ax.yaxis.set_major_formatter(mpl.ticker.PercentFormatter(1, decimals=0))
+        lo, hi = sub["prevalence"].min(), sub["prevalence"].max()
+        pad = max(0.01, (hi - lo) * 0.25)
+        ax.set_ylim(lo - pad, hi + pad)
+        ax.grid(axis="x", visible=False)
+    np.atleast_1d(axes)[0].set_ylabel("prevalence")
+    _figure_header(fig, "Prevalence per fold: grouping by template keeps folds balanced, grouping by world does not",
+                   _patches(SPLIT_COLORS, SPLIT_COLORS))
+    return fig
+
+
+def _figure_header(fig: plt.Figure, title: str, handles: list, top: float = 0.80) -> None:
+    """Bold title and a one-row legend above a multi-panel figure, without the gap tight_layout leaves."""
+    fig.tight_layout(rect=(0, 0, 1, top))
+    fig.suptitle(title, x=0.01, y=0.99, ha="left", va="top", fontsize=11, fontweight="bold")
+    fig.legend(handles=handles, loc="upper left", bbox_to_anchor=(0.01, 0.99 - 0.09 * 2.8 / fig.get_figheight()),
+               ncol=len(handles), handlelength=1.0, handleheight=0.8, columnspacing=1.2, borderaxespad=0)
+
+
+def plot_resolution(res: pd.DataFrame, fpr_name: str, min_fp: int) -> plt.Figure:
+    """Expected false positives at one target FPR, per evaluation unit, for the gate and the scanner."""
+    views = {"gate": SERIES[0], "scan": SERIES[2]}
+    fig, ax = plt.subplots(figsize=(8, 0.42 * len(res) + 1.4))
+    y = np.arange(len(res))
+    h = 0.38
+    for k, (v, color) in enumerate(views.items()):
+        vals = res[f"{v} FP @ {fpr_name}"].astype(float).to_numpy()
+        yy = y + (k - 0.5) * h
+        ax.barh(yy, vals, height=h * 0.9, color=color, label=v)
+        for yi, val in zip(yy, vals):
+            ax.text(val + 0.3, yi, f"{val:.0f}", va="center", fontsize=7.5, color=INK_2)
+    ax.axvline(min_fp, color=INK_3, linewidth=1.2, linestyle=(0, (3, 3)))
+    ax.text(min_fp + 0.3, -0.9, f"{min_fp} false positives: relative SE of the FPR ≈ {1 / np.sqrt(min_fp):.0%}",
+            fontsize=8, color=INK_3, va="center")
+    ax.set_yticks(y, res.index)
+    ax.invert_yaxis()
+    ax.set_ylim(len(res) - 0.4, -1.3)
+    ax.grid(axis="y", visible=False)
+    ax.set_xlabel(f"expected false positives = negative steps × {fpr_name}")
+    _legend_top(ax, _patches(views, views), y=1.01)
+    ax.set_title(f"How many false positives does a {fpr_name} FPR leave to measure?", pad=22)
+    return fig
+
+
+WIDTH_COLORS = {"width (fold, steps iid)": INK_3, "width (fold, templates)": SERIES[0],
+                "width (test size, templates)": SERIES[6]}
+WIDTH_LABELS = {"width (fold, steps iid)": "steps resampled (invalid)",
+                "width (fold, templates)": "templates resampled, fold size",
+                "width (test size, templates)": "templates resampled, test size"}
+
+
+def plot_interval_widths(summaries: dict, metrics: list[str]) -> plt.Figure:
+    """95% interval width of the reference score per metric: step bootstrap vs template bootstrap."""
+    fig, axes = plt.subplots(1, len(summaries), figsize=(11, 0.55 * len(metrics) + 1.6), sharey=True)
+    cols = list(WIDTH_COLORS)
+    h = 0.8 / len(cols)
+    for ax, (target, s) in zip(np.atleast_1d(axes), summaries.items()):
+        s = s.loc[metrics]
+        y = np.arange(len(s))
+        for k, c in enumerate(cols):
+            yy = y + (k - (len(cols) - 1) / 2) * h
+            ax.barh(yy, s[c], height=h * 0.9, color=WIDTH_COLORS[c])
+            for yi, v in zip(yy, s[c]):
+                ax.text(v + 0.002, yi, f"{v:.3f}", va="center", fontsize=7.5, color=INK_2)
+        ax.set_yticks(y, metrics)
+        ax.grid(axis="y", visible=False)
+        ax.set_xlim(0, float(s[cols].to_numpy().max()) * 1.25)
+        ax.set_title(TARGET_NAMES.get(target, target), fontsize=10)
+        ax.set_xlabel("width of the 95% interval")
+    np.atleast_1d(axes)[0].invert_yaxis()  # shared y axis: invert once
+    leg = [Patch(facecolor=WIDTH_COLORS[c], label=WIDTH_LABELS[c]) for c in cols]
+    _figure_header(fig, "Expected 95% interval widths (metadata-only reference score, dev folds)", leg)
+    return fig

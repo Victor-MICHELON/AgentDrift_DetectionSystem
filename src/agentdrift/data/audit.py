@@ -884,3 +884,370 @@ def visible_vs_heuristic(sheet: pd.DataFrame, steps_raw: pd.DataFrame) -> pd.Dat
         }
     order = ["attacked_full", "attacked_partial", "attacked_delayed", "all"]
     return pd.DataFrame(rows).T.reindex([o for o in order if o in rows])
+
+
+# --------------------------------------------------------------------------- part C: evaluation protocol
+#
+# Leakage rules for part C (L5): the fixed test set only contributes COUNTS (size and prevalence, already shown
+# in the step-8 table). No score is ever computed on it: the expected interval widths are measured on the dev
+# folds with a metadata-only reference score fitted out of fold, then projected to the size of the test set.
+
+FPR_TARGETS = {"1%": 0.01, "0.2%": 0.002}
+MIN_FALSE_POSITIVES = 10  # below this, the observed FPR has a relative standard error > 1/sqrt(10) ~ 32%
+UNIT_TEST = "test"
+
+
+def _unit_name(fold: int) -> str:
+    return UNIT_TEST if fold == -1 else f"fold {fold}"
+
+
+def load_inputs_protocol() -> dict[str, pd.DataFrame]:
+    """Part A inputs with the outer fold and the world-control fold of every trajectory and step."""
+    from agentdrift.splits import grouped as G
+
+    d = load_inputs()
+    folds = G.load_folds()
+    d["folds"] = folds
+    d["trajectories"] = G.attach_folds(d["trajectories"], folds)
+    d["steps"] = G.attach_folds(d["steps"], folds)
+    return d
+
+
+def fold_table(d: dict) -> pd.DataFrame:
+    """Size and prevalence per outer fold and for the fixed test set (counts only for the test set)."""
+    from agentdrift.splits.grouped import fold_summary
+
+    s = fold_summary(d["folds"], d["trajectories"].drop(columns=["fold", "world_fold"]),
+                     d["steps"].drop(columns=["fold", "world_fold"]))
+    s.index = [_unit_name(int(k)) for k in s.index]
+    s = s.loc[[i for i in s.index if i != UNIT_TEST] + [UNIT_TEST]]
+    return s[["templates", "trajectories", "worlds", "steps", "y_traj", "y_scan", "y_gate", "first_h"]]
+
+
+def fold_balance(d: dict) -> pd.DataFrame:
+    """How much the dev folds differ from each other: template folds (the protocol) vs world folds (control)."""
+    from agentdrift.splits.grouped import fold_summary
+
+    traj = d["trajectories"].drop(columns=["fold", "world_fold"])
+    steps = d["steps"].drop(columns=["fold", "world_fold"])
+    out = {}
+    for name, col in [("template folds", "fold"), ("world folds", "world_fold")]:
+        s = fold_summary(d["folds"], traj, steps, column=col).drop(index=-1, errors="ignore")
+        cat = s[[c for c in s.columns if c.startswith("share ") and c.removeprefix("share ") in SOURCE_ORDER]]
+        dom = s[[c for c in s.columns if c.startswith("share ") and c.removeprefix("share ") not in SOURCE_ORDER]]
+        out[name] = {
+            "max gap of a category share to the dev mean (pts)": 100 * float((cat - cat.mean()).abs().max().max()),
+            "max gap of a domain share to the dev mean (pts)": 100 * float((dom - dom.mean()).abs().max().max()),
+            "y_traj range across folds (pts)": 100 * float(s["y_traj"].max() - s["y_traj"].min()),
+            "y_gate range across folds (pts)": 100 * float(s["y_gate"].max() - s["y_gate"].min()),
+            "y_scan range across folds (pts)": 100 * float(s["y_scan"].max() - s["y_scan"].min()),
+        }
+    return pd.DataFrame(out)
+
+
+def fold_prevalence(d: dict) -> pd.DataFrame:
+    """Prevalence per dev fold for the template folds and the world-control folds (long format, for the figure)."""
+    from agentdrift.splits.grouped import fold_summary
+
+    traj = d["trajectories"].drop(columns=["fold", "world_fold"])
+    steps = d["steps"].drop(columns=["fold", "world_fold"])
+    rows = []
+    for name, col in [("template folds", "fold"), ("world folds", "world_fold")]:
+        s = fold_summary(d["folds"], traj, steps, column=col).drop(index=-1, errors="ignore")
+        for k, r in s.iterrows():
+            rows += [{"split": name, "fold": int(k), "target": t, "prevalence": float(r[t])}
+                     for t in ("y_traj", "y_gate", "y_scan")]
+    return pd.DataFrame(rows)
+
+
+def grouping_checks(d: dict) -> dict:
+    """What is and is not shared between folds and between dev and the fixed test set."""
+    traj = d["trajectories"]
+    dev, test = traj[traj["fold"] != -1], traj[traj["fold"] == -1]
+    folds_per_template = dev.groupby("template_id")["fold"].nunique()
+    folds_per_world = dev.groupby("world_id")["fold"].nunique()
+    return {
+        "dev_templates": int(dev["template_id"].nunique()),
+        "test_templates": int(test["template_id"].nunique()),
+        "templates_in_two_folds_or_more": int((folds_per_template > 1).sum()),
+        "templates_shared_dev_test": len(set(dev["template_id"]) & set(test["template_id"])),
+        "dev_worlds": int(dev["world_id"].nunique()),
+        "worlds_in_two_folds_or_more": int((folds_per_world > 1).sum()),
+        "test_trajectories_whose_world_is_in_dev": round(float(test["world_id"].isin(set(dev["world_id"])).mean()), 3),
+        "trajectories_per_template_dev_median": float(dev.groupby("template_id").size().median()),
+        "trajectories_per_template_test_median": float(test.groupby("template_id").size().median()),
+    }
+
+
+def lodo_table(d: dict) -> pd.DataFrame:
+    """Leave-one-domain-out: size of each held-out domain and its prevalence against the four training domains."""
+    from agentdrift.splits.grouped import lodo_splits
+
+    traj, steps = d["trajectories"], d["steps"]
+    dev_steps = steps[steps["fold"] != -1]
+    rows = {}
+    for dom, tr, ev in lodo_splits(traj):
+        held, rest = traj.iloc[ev], traj.iloc[tr]
+        sh, sr = dev_steps[dev_steps["domain"] == dom], dev_steps[dev_steps["domain"] != dom]
+        rows[dom] = {
+            "templates": held["template_id"].nunique(), "trajectories": len(held),
+            "share of dev": len(held) / (len(held) + len(rest)),
+            "y_traj held out": held["y_traj"].mean(), "y_traj train": rest["y_traj"].mean(),
+            "y_gate held out": sh["y_gate"].mean(), "y_gate train": sr["y_gate"].mean(),
+            "share delayed held out": (held["source_category"] == "attacked_delayed").mean(),
+            "share delayed train": (rest["source_category"] == "attacked_delayed").mean(),
+        }
+    return pd.DataFrame(rows).T
+
+
+def _unit_counts(traj: pd.DataFrame, steps: pd.DataFrame) -> dict:
+    scan = steps[steps["t"] >= 1]  # the scanner view has no row at t = 0 (features/views.py)
+    out = {
+        "templates": traj["template_id"].nunique(), "trajectories": len(traj),
+        "negative trajectories": int((traj["y_traj"] == 0).sum()), "first H": int(steps["is_first_h"].sum()),
+        "gate +": int(steps["y_gate"].sum()), "gate −": int((steps["y_gate"] == 0).sum()),
+        "scan +": int(scan["y_scan"].sum()), "scan −": int((scan["y_scan"] == 0).sum()),
+    }
+    for name, f in FPR_TARGETS.items():
+        out[f"gate FP @ {name}"] = out["gate −"] * f
+        out[f"scan FP @ {name}"] = out["scan −"] * f
+    return out
+
+
+def resolution_table(d: dict) -> pd.DataFrame:
+    """For every evaluation unit: positives, negatives and the EXPECTED number of false positives at each target
+    FPR (negatives x FPR). Few false positives = the observed FPR, and a threshold set at that FPR, are noisy.
+
+    Units: each outer validation fold; the inner validation parts used to set thresholds (median over the
+    3 inner parts of the 5 outer training parts); the fixed test set (counts only); each held-out domain."""
+    from agentdrift.splits.grouped import inner_splits, lodo_splits
+
+    traj, steps = d["trajectories"], d["steps"]
+    rows = {}
+    for k in sorted(traj["fold"].unique()):
+        if k != -1:
+            rows[_unit_name(int(k))] = _unit_counts(traj[traj["fold"] == k], steps[steps["fold"] == k])
+    inner = []
+    dev = traj[traj["fold"] != -1].reset_index(drop=True)
+    for k in sorted(dev["fold"].unique()):
+        part = dev[dev["fold"] != k].reset_index(drop=True)
+        for _, val in inner_splits(part):
+            ids = set(part.loc[val, "traj_id"])
+            inner.append(_unit_counts(part.loc[val], steps[steps["traj_id"].isin(ids)]))
+    rows["inner validation (median)"] = pd.DataFrame(inner).median().to_dict()
+    rows[UNIT_TEST] = _unit_counts(traj[traj["fold"] == -1], steps[steps["fold"] == -1])
+    for dom, _, ev in lodo_splits(traj):
+        held = traj.iloc[ev]
+        rows[f"held-out {dom}"] = _unit_counts(held, steps[steps["traj_id"].isin(set(held["traj_id"]))])
+    return pd.DataFrame(rows).T
+
+
+def reference_scores(d: dict, target: str, seed: int = SEED) -> tuple[pd.DataFrame, dict, dict]:
+    """Out-of-fold scores of a deliberately crude, metadata-only reference (NOT a project model): logistic
+    regression on one-hot (tool, step index, domain), fitted on the four training folds, scored on the fifth.
+    Its only purpose is to measure interval widths at a realistic performance level.
+
+    The tool is the one the view can read: a_t for the gate, a_{t-1} (the call that produced o_{t-1}) for the
+    scanner, whose rows start at t = 1. Thresholds at each target FPR are set on the training part's negatives
+    (alert when score > threshold), then applied unchanged to the held-out fold.
+    The score takes few distinct values (ties), so the FPR reached on the training part can fall below the target:
+    it is returned too, to separate the effect of ties from the effect of moving to another fold.
+    Returns (scores of dev steps: traj_id, t, template_id, fold, domain, y, score), {fold: {name: threshold}} and
+    {fold: {name: FPR reached on the training part}}."""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import OneHotEncoder
+
+    from agentdrift.splits.grouped import outer_splits
+
+    s = d["steps"][d["steps"]["fold"] != -1].sort_values(["traj_id", "t"]).reset_index(drop=True)
+    if target == "y_scan":
+        s["view_tool"] = s.groupby("traj_id")["tool"].shift(1)
+        s = s[s["t"] >= 1].reset_index(drop=True)
+    elif target == "y_gate":
+        s["view_tool"] = s["tool"]
+    else:
+        raise ValueError(f"unknown step target {target!r}")
+    X = s[["view_tool", "t", "domain"]].astype(str)
+    y = s[target].astype(int).to_numpy()
+    score = np.full(len(s), np.nan)
+    thresholds, reached = {}, {}
+    for k, tr, ev in outer_splits(s):
+        model = make_pipeline(OneHotEncoder(handle_unknown="ignore"),
+                              LogisticRegression(max_iter=2000, random_state=seed))
+        model.fit(X.iloc[tr], y[tr])
+        score[ev] = model.predict_proba(X.iloc[ev])[:, 1]
+        neg = np.sort(model.predict_proba(X.iloc[tr][y[tr] == 0])[:, 1])[::-1]
+        thresholds[k] = {name: float(neg[int(np.floor(f * len(neg)))]) for name, f in FPR_TARGETS.items()}
+        reached[k] = {name: float((neg > thr).mean()) for name, thr in thresholds[k].items()}
+    out = s[["traj_id", "t", "template_id", "fold", "domain"]].assign(y=y, score=score)
+    return out, thresholds, reached
+
+
+def interval_widths(ref: pd.DataFrame, thresholds: dict, test_templates: int, n_resamples: int = 2000,
+                    level: float = 0.95, seed: int = SEED) -> pd.DataFrame:
+    """Per dev fold and metric: point estimate and 95% interval width of the reference score
+    - resampling the fold's templates (cluster bootstrap, the protocol);
+    - resampling `test_templates` templates from the fold (spread expected on a test set of that size);
+    - resampling steps independently (invalid; shows how much the dependence widens the interval).
+    design_effect = (cluster width / iid width)^2, at the fold's own size."""
+    from agentdrift.evaluation import bootstrap as BS
+
+    rows = []
+    for k in sorted(ref["fold"].unique()):
+        r = ref[ref["fold"] == k]
+        thr = thresholds[k]
+        est = BS.point_estimate(r["score"], r["y"], thresholds=thr)
+        clus = BS.interval(BS.cluster_bootstrap(r["score"], r["y"], r["template_id"], thr, n_resamples, seed=seed), level)
+        proj = BS.interval(BS.cluster_bootstrap(r["score"], r["y"], r["template_id"], thr, n_resamples,
+                                                size=test_templates, seed=seed), level)
+        iid = BS.interval(BS.iid_bootstrap(r["score"], r["y"], thr, n_resamples, seed=seed), level)
+        for m, v in est.items():
+            rows.append({"fold": int(k), "templates": r["template_id"].nunique(), "metric": m, "estimate": v,
+                         "width (fold, templates)": clus.loc[m, "width"],
+                         "width (test size, templates)": proj.loc[m, "width"],
+                         "width (fold, steps iid)": iid.loc[m, "width"]})
+    out = pd.DataFrame(rows)
+    out["design effect"] = (out["width (fold, templates)"] / out["width (fold, steps iid)"]) ** 2
+    return out
+
+
+def interval_summary(widths: pd.DataFrame) -> pd.DataFrame:
+    """Mean over the five folds, with the fold-to-fold standard deviation of the estimate."""
+    g = widths.groupby("metric", sort=False)
+    out = g[["estimate", "width (fold, templates)", "width (test size, templates)", "width (fold, steps iid)",
+             "design effect"]].mean()
+    out.insert(1, "sd across folds", g["estimate"].std())
+    return out
+
+
+def threshold_transfer(widths: pd.DataFrame, reached: dict) -> pd.DataFrame:
+    """Per fold and target FPR: FPR reached on the training folds (ties can keep it below the target) and FPR
+    observed on the held-out fold with the same threshold."""
+    obs = widths[widths["metric"].str.startswith("fpr@")].pivot(index="fold", columns="metric", values="estimate")
+    cols = {}
+    for name in FPR_TARGETS:
+        cols[(name, "training folds")] = pd.Series({k: v[name] for k, v in reached.items()})
+        cols[(name, "held-out fold")] = obs[f"fpr@{name}"]
+    out = pd.DataFrame(cols)
+    out.columns = pd.MultiIndex.from_tuples(out.columns, names=["target FPR", "FPR measured on"])
+    return out
+
+
+def compute_protocol_intervals(d: dict, test_templates: int, n_resamples: int, seed: int = SEED) -> dict:
+    out = {}
+    for target in ("y_gate", "y_scan"):
+        ref, thr, reached = reference_scores(d, target, seed)
+        w = interval_widths(ref, thr, test_templates, n_resamples, seed=seed)
+        out[target] = {"widths": w, "summary": interval_summary(w), "transfer": threshold_transfer(w, reached)}
+    return out
+
+
+# --------------------------------------------------------------------------- part C: synthesis
+
+
+def _cell(table: dict, row, col):
+    """Value of a table saved by `run_eda` as JSON (orient="split")."""
+    return table["data"][table["index"].index(row)][table["columns"].index(col)]
+
+
+def _repro(metrics_a: dict, measure: str):
+    """'recomputed' value of a row of the part-A reproduction table, found by its `measure` text."""
+    t = metrics_a["reproduction"]
+    row = next(r for r in t["data"] if r[t["columns"].index("measure")] == measure)
+    return row[t["columns"].index("recomputed")]
+
+
+# Where each decision of `synthesis_table` stands (same row order; updated by hand, docs/PLAN_DONNEES.md step 9):
+# implemented = code and test exist; in progress = ticket open; decided = written in CONTEXT, code pending;
+# proposed = new from this EDA, to confirm as a team.
+SYNTHESIS_STATUS = [
+    "implemented (splits/grouped.py)", "implemented (data/anonymize.py)", "implemented (EDA B3)",
+    "implemented", "in progress (L12 test)", "implemented (features/views.py)",
+    "in progress (KAN-19, KAN-58)", "implemented (views: include_thought=False)", "decided (CONTEXT 8.2)",
+    "decided (CONTEXT 8.2)", "implemented (evaluation/bootstrap.py)", "implemented (evaluation/bootstrap.py)",
+    "proposed", "decided (CONTEXT 8.1)",
+]
+
+
+def synthesis_table(metrics_a: dict, metrics_b: dict, rc: dict) -> pd.DataFrame:
+    """Finding -> decision -> hypothesis, every number read from the saved outputs of parts A and B
+    (results/runs/eda*/metrics.json) or computed in part C. One row per decision of the data phase."""
+    sc, vis, purity = metrics_a["shortcuts"], metrics_a["visibility"], metrics_a["world_purity_by_domain"]
+    probe = metrics_b["world_probe"]
+    g, ci = rc["grouping"], rc["intervals"]
+    pur = dict(zip(purity["index"], [r[purity["columns"].index("weighted_majority_share")] for r in purity["data"]]))
+    low = min(pur, key=pur.get)
+    rest = [v for k, v in pur.items() if k != low]
+    vis_any = {c: _cell(vis, c, "any of the three") for c in ("attacked_full", "attacked_partial", "attacked_delayed")}
+    gap = metrics_a["gap"]
+    delayed = {str(k): v for k, v in zip(gap["columns"], gap["data"][gap["index"].index("attacked_delayed")])}
+    n_delayed = sum(delayed.values())
+    gate = ci["y_gate"]["summary"]
+    res = rc["resolution"]
+    prev = metrics_a["prevalence_split"]
+    p_all = dict(zip(prev["columns"], prev["data"][prev["index"].index("all")]))
+    lodo = rc["lodo"]
+    rows = [
+        ("Same task template in train and test inflates scores",
+         f"{g['templates_in_two_folds_or_more']} templates in two folds, {g['templates_shared_dev_test']} shared "
+         "dev / test (after the split)",
+         "Split grouped by template; fixed test set of the original task-disjoint split", "protocol", "L1"),
+        ("The simulated world gives away the category",
+         f"world purity {min(rest):.0%}–{max(rest):.0%} by domain ({low}: {pur[low]:.0%}); world lookup F1 "
+         f"{_cell(sc, 'world lookup → y_traj', 'f1'):.3f}",
+         "Anonymise world identities (relational placeholders) before any feature", "preprocessing", "L9, H3 (rung 4)"),
+        ("Worlds cannot be grouped together with templates",
+         f"{g['worlds_in_two_folds_or_more']} of {g['dev_worlds']} dev worlds in two folds or more",
+         "Text-only world probe as the control; world-grouped folds as a robustness check", "protocol", "L9"),
+        ("Anonymisation removes the world signal from the text",
+         f"text world probe {_cell(probe, 'raw', 'world_accuracy'):.1%} → "
+         f"{_cell(probe, 'anonymised', 'world_accuracy'):.1%} (chance {_cell(probe, 'raw', 'chance_given_category'):.1%})",
+         "Models read the anonymised tables only (`read_*(anonymized=True)`)", "preprocessing", "L9"),
+        ("Position alone predicts the targets",
+         f"ROC-AUC {_cell(sc, 'position only → y_scan', 'roc_auc'):.3f} (scan), "
+         f"{_cell(sc, 'position only → y_gate', 'roc_auc'):.3f} (gate)",
+         "Report the position-only baseline as the floor; step index and history length never features", "protocol",
+         "L12, H3"),
+        ("Total length leaks the future",
+         f"trajectory length alone ROC-AUC {_cell(sc, 'trajectory length → y_traj', 'roc_auc'):.2f} for y_traj",
+         "Causal views: nothing after t (features/views.py)", "preprocessing", "L3, L11"),
+        ("Injections are readable for full attacks, often not for partial / delayed ones",
+         f"any indicator visible: full {vis_any['attacked_full']:.0%}, partial {vis_any['attacked_partial']:.0%}, "
+         f"delayed {vis_any['attacked_delayed']:.0%}",
+         "Mask generator artefacts (generic upper-case label rule, policy codes, amounts); recall by attack type "
+         "and by visibility", "preprocessing + metric", "H3, H2, H8"),
+        ("The generated thought confesses the attack",
+         f"confession words in thought: {_repro(metrics_a, 'confession words in thought, H partial'):.0%} of H partial",
+         "Variant without `thought` is the reference; with `thought` reported as an ablation rung", "preprocessing",
+         "H3 (rung 3)"),
+        ("Imbalanced targets; the step to stop is the first hijacked one",
+         f"y_scan {p_all['y_scan']:.1%}, y_gate {p_all['y_gate']:.1%} of steps; {int(p_all['first_h'])} first H "
+         f"({p_all['first_h'] / p_all['steps']:.1%} of steps)",
+         "PR-AUC as the main metric; class weights; business metrics at the first alert", "metric", "—"),
+        ("The scanner can only anticipate on delayed attacks",
+         f"injection → hijack gap ≥ 2 steps only for delayed attacks ({delayed.get('2', 0) / n_delayed:.0%} at "
+         "exactly 2)",
+         "Detection lead reported on delayed attacks only", "metric", "H2, H6"),
+        ("The fixed test set is small",
+         f"{g['test_templates']} templates; expected 95% interval width on it: PR-AUC ±"
+         f"{gate.loc['pr_auc', 'width (test size, templates)'] / 2:.3f}, recall at 1% FPR ±"
+         f"{gate.loc['recall@1%', 'width (test size, templates)'] / 2:.3f} (reference score, gate)",
+         "Report every test result with a template-cluster bootstrap interval; model choice on the 5 dev folds",
+         "protocol", "L5"),
+        ("Steps are not independent",
+         f"design effect {gate['design effect'].median():.1f} (median over gate metrics): a step-level bootstrap "
+         "would understate the interval",
+         "Resample templates, never steps; paired bootstrap for model comparisons", "protocol", "—"),
+        ("Very low FPR targets are hardly measurable",
+         f"expected false positives at 0.2% FPR: {res.loc[UNIT_TEST, 'gate FP @ 0.2%']:.0f} on the test set, "
+         f"{res.loc['inner validation (median)', 'gate FP @ 0.2%']:.0f} on an inner validation part",
+         "Keep 0.2% as a secondary operating point, reported with its observed FPR", "metric", "H5"),
+        ("Domains differ in prevalence and attack mix",
+         f"held-out y_traj {lodo['y_traj held out'].min():.0%}–{lodo['y_traj held out'].max():.0%}; delayed share "
+         f"{lodo['share delayed held out'].min():.0%}–{lodo['share delayed held out'].max():.0%}",
+         "Leave-one-domain-out, with the threshold transferred from the training domains", "protocol", "H1, H5"),
+    ]
+    out = pd.DataFrame(rows, columns=["finding", "evidence", "decision", "kind", "hypothesis / leak"])
+    out["status"] = SYNTHESIS_STATUS
+    return out
