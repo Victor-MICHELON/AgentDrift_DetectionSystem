@@ -368,7 +368,7 @@ def plot_projection(pts: pd.DataFrame) -> plt.Figure:
 
 def plot_external(traj: pd.DataFrame, atb: pd.DataFrame) -> plt.Figure:
     pairs = [
-        ("agent actions per trajectory", traj["n_steps"], atb["n_actions"], np.arange(0.5, 32.5, 1)),
+        ("tool calls per trajectory", traj["n_steps"], atb["n_actions"], np.arange(-0.5, 23.5, 1)),
         ("task length (characters)", traj["task"].str.len(), atb["task_chars"], np.linspace(0, 900, 37)),
     ]
     fig, axes = plt.subplots(1, 2, figsize=(10, 2.9))
@@ -382,4 +382,199 @@ def plot_external(traj: pd.DataFrame, atb: pd.DataFrame) -> plt.Figure:
     axes[0].legend(loc="upper right")
     fig.suptitle("External test set: ATBench vs AgentDrift", x=0.01, ha="left", fontsize=11, fontweight="bold")
     fig.tight_layout()
+    return fig
+
+
+# --------------------------------------------------------------------------- part B: effect of the preprocessing
+
+VERSION_COLORS = {"raw": INK_3, "anonymised": SERIES[0], "masked": SERIES[2]}
+
+
+def plot_before_after_bars(table: pd.DataFrame, title: str, xlabel: str, reference: tuple[str, float] | None = None
+                           ) -> plt.Figure:
+    """Paired horizontal bars, one colour per text version (columns of `table` among raw / anonymised / masked);
+    optional dashed reference line (label, value), e.g. a chance level."""
+    versions = [v for v in VERSION_COLORS if v in table.columns]
+    fig, ax = plt.subplots(figsize=(7.5, 0.55 * len(table) + 1.3))
+    h = 0.8 / len(versions)
+    y = np.arange(len(table))
+    for k, v in enumerate(versions):
+        vals = table[v].astype(float).to_numpy()
+        ax.barh(y + (k - (len(versions) - 1) / 2) * h, vals, height=h * 0.9, color=VERSION_COLORS[v])
+        for yi, val in zip(y + (k - (len(versions) - 1) / 2) * h, vals):
+            ax.text(val + 0.008, yi, "0" if val == 0 else ("<1%" if val < 0.005 else f"{val:.0%}"),
+                    va="center", fontsize=8, color=INK_2)
+    ax.set_yticks(y, table.index)
+    ax.invert_yaxis()
+    ax.grid(axis="y", visible=False)
+    ax.set_xlim(0, max(0.1, float(table[versions].to_numpy(dtype=float).max()) * 1.18))
+    ax.xaxis.set_major_formatter(mpl.ticker.PercentFormatter(1, decimals=0))
+    ax.set_xlabel(xlabel)
+    handles = _patches(VERSION_COLORS, versions)
+    if reference is not None:
+        ax.axvline(reference[1], color=INK_3, linewidth=1.2, linestyle=(0, (3, 3)))
+        handles.append(mpl.lines.Line2D([], [], color=INK_3, linewidth=1.2, linestyle=(0, (3, 3)),
+                                        label=f"{reference[0]} ({reference[1]:.0%})"))
+    _legend_top(ax, handles)
+    ax.set_title(title, pad=24)
+    return fig
+
+
+def plot_world_probe(probe: pd.DataFrame) -> plt.Figure:
+    """Text-only world probe accuracy per text version, against its two chance levels."""
+    fig, ax = plt.subplots(figsize=(7.5, 0.6 * len(probe) + 1.4))
+    y = np.arange(len(probe))
+    acc = probe["world_accuracy"].astype(float)
+    ax.barh(y, acc, color=[VERSION_COLORS.get(i, SERIES[0]) for i in probe.index], height=0.55)
+    for yi, v in zip(y, acc):
+        ax.text(v + 0.002, yi, f"{v:.1%}", va="center", fontsize=8.5, color=INK_2)
+    for col, label, style in [("chance_given_category", "chance, same domain × category", (0, (3, 3))),
+                              ("chance_given_domain", "chance, same domain", (0, (1, 2)))]:
+        c = float(probe[col].iloc[0])
+        ax.axvline(c, color=INK_3, linewidth=1.2, linestyle=style, label=f"{label} ({c:.1%})")
+    ax.legend(loc="lower right", handlelength=2.2)
+    ax.set_yticks(y, probe.index)
+    ax.invert_yaxis()
+    ax.grid(axis="y", visible=False)
+    ax.set_xlim(0, max(0.05, float(acc.max()) * 1.25))
+    ax.xaxis.set_major_formatter(mpl.ticker.PercentFormatter(1, decimals=0))
+    ax.set_xlabel("val trajectories whose nearest train neighbour (TF-IDF) has the same world")
+    ax.set_title("Can the text alone identify the simulated world?")
+    return fig
+
+
+def plot_provenance_before_after(table: pd.DataFrame) -> plt.Figure:
+    """Heatmaps side by side: provenance rates on each text version present (raw, anonymised, masked)."""
+    versions = [v for v in VERSION_COLORS if v in set(table.columns.get_level_values(1))]
+    tabs = {v: table.xs(v, axis=1, level=1) for v in versions}
+    vmax = max(float(t.to_numpy().max()) for t in tabs.values())
+    fig, axes = plt.subplots(1, len(versions), figsize=(6 * len(versions), 0.42 * len(tabs[versions[0]]) + 1.6),
+                             sharey=True)
+    for ax, v in zip(np.atleast_1d(axes), versions):
+        heatmap(ax, tabs[v], vmax=vmax)
+        ax.set_title(f"{v} text", fontsize=10)
+    fig.suptitle("Argument provenance on each version of the text (share of steps)", x=0.01, ha="left",
+                 fontweight="bold", fontsize=11)
+    fig.tight_layout()
+    return fig
+
+
+def plot_injection_signals(table: pd.DataFrame) -> plt.Figure:
+    """Per attack type, share of poisoned responses carrying each signal, before / after masking."""
+    signals = list(dict.fromkeys(table.columns.get_level_values(0)))
+    versions = [v for v in VERSION_COLORS if v in set(table.columns.get_level_values(1))]
+    fig, axes = plt.subplots(1, len(signals), figsize=(4.2 * len(signals), 0.55 * len(table) + 1.6), sharey=True)
+    h = 0.8 / len(versions)
+    y = np.arange(len(table))
+    for ax, sig in zip(np.atleast_1d(axes), signals):
+        for k, v in enumerate(versions):
+            vals = table[(sig, v)].astype(float).to_numpy()
+            yy = y + (k - (len(versions) - 1) / 2) * h
+            ax.barh(yy, vals, height=h * 0.9, color=VERSION_COLORS[v])
+            for yi, val in zip(yy, vals):
+                ax.text(val + 0.02, yi, "0" if val == 0 else ("<1%" if val < 0.005 else f"{val:.0%}"),
+                        va="center", fontsize=7.5, color=INK_2)
+        ax.set_title(textwrap.fill(sig, 26), fontsize=9.5)
+        ax.set_xlim(0, 1.25)
+        ax.xaxis.set_major_formatter(mpl.ticker.PercentFormatter(1, decimals=0))
+        ax.grid(axis="y", visible=False)
+    ax0 = np.atleast_1d(axes)[0]
+    ax0.set_yticks(y, [f"{i} injections" for i in table.index])
+    ax0.invert_yaxis()
+    _figure_header(fig, "What is left in the poisoned response once the generator's tics are masked?",
+                   _patches(VERSION_COLORS, versions), top=0.82)
+    return fig
+
+
+# --------------------------------------------------------------------------- part C: evaluation protocol
+
+
+SPLIT_COLORS = {"template folds": SERIES[0], "world folds": SERIES[1]}
+TARGET_NAMES = {"y_traj": "y_traj (trajectory)", "y_gate": "y_gate (step)", "y_scan": "y_scan (step)"}
+
+
+def plot_fold_prevalence(fp: pd.DataFrame) -> plt.Figure:
+    """Prevalence per dev fold, template folds (protocol) against world folds (control), one panel per target."""
+    targets = [t for t in TARGET_NAMES if t in set(fp["target"])]
+    fig, axes = plt.subplots(1, len(targets), figsize=(11, 2.8))
+    for ax, t in zip(np.atleast_1d(axes), targets):
+        sub = fp[fp["target"] == t]
+        for k, (split, color) in enumerate(SPLIT_COLORS.items()):
+            s = sub[sub["split"] == split].sort_values("fold")
+            ax.plot(s["fold"] + (k - 0.5) * 0.12, s["prevalence"], "o", color=color, markersize=6, label=split)
+        ax.set_title(TARGET_NAMES[t], fontsize=10)
+        ax.set_xticks(sorted(sub["fold"].unique()))
+        ax.set_xlabel("fold")
+        ax.yaxis.set_major_formatter(mpl.ticker.PercentFormatter(1, decimals=0))
+        lo, hi = sub["prevalence"].min(), sub["prevalence"].max()
+        pad = max(0.01, (hi - lo) * 0.25)
+        ax.set_ylim(lo - pad, hi + pad)
+        ax.grid(axis="x", visible=False)
+    np.atleast_1d(axes)[0].set_ylabel("prevalence")
+    _figure_header(fig, "Prevalence per fold: grouping by template keeps folds balanced, grouping by world does not",
+                   _patches(SPLIT_COLORS, SPLIT_COLORS))
+    return fig
+
+
+def _figure_header(fig: plt.Figure, title: str, handles: list, top: float = 0.80) -> None:
+    """Bold title and a one-row legend above a multi-panel figure, without the gap tight_layout leaves."""
+    fig.tight_layout(rect=(0, 0, 1, top))
+    fig.suptitle(title, x=0.01, y=0.99, ha="left", va="top", fontsize=11, fontweight="bold")
+    fig.legend(handles=handles, loc="upper left", bbox_to_anchor=(0.01, 0.99 - 0.09 * 2.8 / fig.get_figheight()),
+               ncol=len(handles), handlelength=1.0, handleheight=0.8, columnspacing=1.2, borderaxespad=0)
+
+
+def plot_resolution(res: pd.DataFrame, fpr_name: str, min_fp: int) -> plt.Figure:
+    """Expected false positives at one target FPR, per evaluation unit, for the gate and the scanner."""
+    views = {"gate": SERIES[0], "scan": SERIES[2]}
+    fig, ax = plt.subplots(figsize=(8, 0.42 * len(res) + 1.4))
+    y = np.arange(len(res))
+    h = 0.38
+    for k, (v, color) in enumerate(views.items()):
+        vals = res[f"{v} FP @ {fpr_name}"].astype(float).to_numpy()
+        yy = y + (k - 0.5) * h
+        ax.barh(yy, vals, height=h * 0.9, color=color, label=v)
+        for yi, val in zip(yy, vals):
+            ax.text(val + 0.3, yi, f"{val:.0f}", va="center", fontsize=7.5, color=INK_2)
+    ax.axvline(min_fp, color=INK_3, linewidth=1.2, linestyle=(0, (3, 3)))
+    ax.text(min_fp + 0.3, -0.9, f"{min_fp} false positives: relative SE of the FPR ≈ {1 / np.sqrt(min_fp):.0%}",
+            fontsize=8, color=INK_3, va="center")
+    ax.set_yticks(y, res.index)
+    ax.invert_yaxis()
+    ax.set_ylim(len(res) - 0.4, -1.3)
+    ax.grid(axis="y", visible=False)
+    ax.set_xlabel(f"expected false positives = negative steps × {fpr_name}")
+    _legend_top(ax, _patches(views, views), y=1.01)
+    ax.set_title(f"How many false positives does a {fpr_name} FPR leave to measure?", pad=22)
+    return fig
+
+
+WIDTH_COLORS = {"width (fold, steps iid)": INK_3, "width (fold, templates)": SERIES[0],
+                "width (test size, templates)": SERIES[6]}
+WIDTH_LABELS = {"width (fold, steps iid)": "steps resampled (invalid)",
+                "width (fold, templates)": "templates resampled, fold size",
+                "width (test size, templates)": "templates resampled, test size"}
+
+
+def plot_interval_widths(summaries: dict, metrics: list[str]) -> plt.Figure:
+    """95% interval width of the reference score per metric: step bootstrap vs template bootstrap."""
+    fig, axes = plt.subplots(1, len(summaries), figsize=(11, 0.55 * len(metrics) + 1.6), sharey=True)
+    cols = list(WIDTH_COLORS)
+    h = 0.8 / len(cols)
+    for ax, (target, s) in zip(np.atleast_1d(axes), summaries.items()):
+        s = s.loc[metrics]
+        y = np.arange(len(s))
+        for k, c in enumerate(cols):
+            yy = y + (k - (len(cols) - 1) / 2) * h
+            ax.barh(yy, s[c], height=h * 0.9, color=WIDTH_COLORS[c])
+            for yi, v in zip(yy, s[c]):
+                ax.text(v + 0.002, yi, f"{v:.3f}", va="center", fontsize=7.5, color=INK_2)
+        ax.set_yticks(y, metrics)
+        ax.grid(axis="y", visible=False)
+        ax.set_xlim(0, float(s[cols].to_numpy().max()) * 1.25)
+        ax.set_title(TARGET_NAMES.get(target, target), fontsize=10)
+        ax.set_xlabel("width of the 95% interval")
+    np.atleast_1d(axes)[0].invert_yaxis()  # shared y axis: invert once
+    leg = [Patch(facecolor=WIDTH_COLORS[c], label=WIDTH_LABELS[c]) for c in cols]
+    _figure_header(fig, "Expected 95% interval widths (metadata-only reference score, dev folds)", leg)
     return fig

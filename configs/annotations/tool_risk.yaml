@@ -1,0 +1,140 @@
+# Risk category of each AgentDrift tool (PLAN_DONNEES step 6, CONTEXT §7.1).
+#
+# A tool's category describes what the tool does by design (its name and declared effect), not how one
+# trajectory happens to use it. A risky use of a harmless tool (e.g. a recipient in `fill_form`) is the job of
+# the provenance features, not of this table.
+#
+# Use: structure feature (H1), replacement of the tool name in leave-one-domain-out, EDA part B.
+# Never fitted on labels: the categories were set from tool names and one example per tool, without looking at
+# how often each tool appears in H steps (no label leakage, rule 2).
+#
+# Workflow: draft by the AI -> review by a second team member -> status: validated.
+# Mark each change in `changes` below, and flip `ambiguous` to false once the team agrees.
+
+status: draft            # draft | validated
+annotator: Claude Code (draft, 2026-11-21)
+reviewer: null           # team member who cross-checked the table (PLAN_DONNEES, pending decision 3)
+reviewed_on: null
+changes: []              # e.g. "- 2026-11-22 Oscar: git_push external_send -> internal_write (reason)"
+
+categories:
+  read: reads or computes, changes nothing outside the agent's view (navigation included)
+  internal_write: creates or modifies state that stays inside the user's own system or organisation
+  external_send: sends data, messages or credentials to a party outside the user's system
+  payment: moves money or commits the user financially
+  delete: removes data or cancels an existing object
+  execute: runs code or commands chosen at run time
+
+tools:
+  # --- banking ---
+  add_beneficiary:      {domain: banking, risk: payment,        ambiguous: true,  note: "ne paie pas, mais autorise un futur virement vers un tiers ; alternative : internal_write"}
+  apply_loan:           {domain: banking, risk: payment,        ambiguous: true,  note: "engagement financier sans transfert immédiat"}
+  check_credit_score:   {domain: banking, risk: read,           ambiguous: false}
+  check_limit:          {domain: banking, risk: read,           ambiguous: false}
+  convert_currency:     {domain: banking, risk: read,           ambiguous: true,  note: "les obs décrivent parfois une conversion exécutée (« Converted $1,500 ») ; alternative : payment"}
+  delete_beneficiary:   {domain: banking, risk: delete,         ambiguous: false}
+  dispute_transaction:  {domain: banking, risk: external_send,  ambiguous: true,  note: "demande envoyée au commerçant ou à la banque ; alternative : internal_write"}
+  freeze_card:          {domain: banking, risk: internal_write, ambiguous: false}
+  get_balance:          {domain: banking, risk: read,           ambiguous: false}
+  get_beneficiaries:    {domain: banking, risk: read,           ambiguous: false}
+  get_fees:             {domain: banking, risk: read,           ambiguous: false}
+  get_interest_rate:    {domain: banking, risk: read,           ambiguous: false}
+  get_rewards:          {domain: banking, risk: read,           ambiguous: false}
+  get_statement:        {domain: banking, risk: read,           ambiguous: false}
+  get_transactions:     {domain: banking, risk: read,           ambiguous: false}
+  open_savings:         {domain: banking, risk: internal_write, ambiguous: true,  note: "ouvre un compte au nom de l'utilisateur ; alternative : payment"}
+  pay_bill:             {domain: banking, risk: payment,        ambiguous: false}
+  set_alert:            {domain: banking, risk: internal_write, ambiguous: false}
+  transfer_money:       {domain: banking, risk: payment,        ambiguous: false}
+  unfreeze_card:        {domain: banking, risk: internal_write, ambiguous: false}
+
+  # --- coding ---
+  check_ci:             {domain: coding,  risk: read,           ambiguous: false}
+  check_syntax:         {domain: coding,  risk: read,           ambiguous: false}
+  close_issue:          {domain: coding,  risk: internal_write, ambiguous: false}
+  create_file:          {domain: coding,  risk: internal_write, ambiguous: false}
+  create_pr:            {domain: coding,  risk: internal_write, ambiguous: true,  note: "visible par l'équipe, reste dans le dépôt de l'organisation"}
+  debug_error:          {domain: coding,  risk: read,           ambiguous: true,  note: "peut lancer le code pour le déboguer ; alternative : execute"}
+  delete_file:          {domain: coding,  risk: delete,         ambiguous: false}
+  execute_command:      {domain: coding,  risk: execute,        ambiguous: false}
+  format_code:          {domain: coding,  risk: internal_write, ambiguous: false}
+  git_commit:           {domain: coding,  risk: internal_write, ambiguous: false}
+  git_diff:             {domain: coding,  risk: read,           ambiguous: false}
+  git_log:              {domain: coding,  risk: read,           ambiguous: false}
+  git_pull:             {domain: coding,  risk: internal_write, ambiguous: true,  note: "importe du code distant dans le dépôt local"}
+  git_push:             {domain: coding,  risk: external_send,  ambiguous: true,  note: "le code quitte la machine vers un dépôt distant ; si le dépôt est interne : internal_write"}
+  install_package:      {domain: coding,  risk: execute,        ambiguous: false, note: "exécute les scripts d'installation du paquet"}
+  list_files:           {domain: coding,  risk: read,           ambiguous: false}
+  open_issue:           {domain: coding,  risk: internal_write, ambiguous: false}
+  read_file:            {domain: coding,  risk: read,           ambiguous: false}
+  read_logs:            {domain: coding,  risk: read,           ambiguous: false}
+  run_tests:            {domain: coding,  risk: execute,        ambiguous: false}
+  search_code:          {domain: coding,  risk: read,           ambiguous: false}
+  search_docs:          {domain: coding,  risk: read,           ambiguous: false}
+  write_file:           {domain: coding,  risk: internal_write, ambiguous: false}
+
+  # --- email ---
+  add_contact:          {domain: email,   risk: internal_write, ambiguous: false}
+  create_draft:         {domain: email,   risk: internal_write, ambiguous: false, note: "brouillon non envoyé"}
+  create_filter:        {domain: email,   risk: internal_write, ambiguous: true,  note: "un filtre peut cacher ou rediriger du courrier à l'insu de l'utilisateur"}
+  create_folder:        {domain: email,   risk: internal_write, ambiguous: false}
+  delete_email:         {domain: email,   risk: delete,         ambiguous: false}
+  download_attachment:  {domain: email,   risk: read,           ambiguous: false}
+  forward_email:        {domain: email,   risk: external_send,  ambiguous: false}
+  get_attachment:       {domain: email,   risk: read,           ambiguous: false}
+  get_contacts:         {domain: email,   risk: read,           ambiguous: false}
+  get_thread:           {domain: email,   risk: read,           ambiguous: false}
+  mark_read:            {domain: email,   risk: internal_write, ambiguous: false}
+  mark_unread:          {domain: email,   risk: internal_write, ambiguous: false}
+  move_email:           {domain: email,   risk: internal_write, ambiguous: false}
+  read_email:           {domain: email,   risk: read,           ambiguous: false}
+  reply_email:          {domain: email,   risk: external_send,  ambiguous: false}
+  schedule_email:       {domain: email,   risk: external_send,  ambiguous: false, note: "envoi différé"}
+  search_inbox:         {domain: email,   risk: read,           ambiguous: false}
+  send_email:           {domain: email,   risk: external_send,  ambiguous: false}
+  summarize_thread:     {domain: email,   risk: read,           ambiguous: false}
+  unsubscribe:          {domain: email,   risk: external_send,  ambiguous: true,  note: "envoie une requête à l'expéditeur ; alternative : internal_write"}
+
+  # --- medical ---
+  add_diagnosis:        {domain: medical, risk: internal_write, ambiguous: false}
+  cancel_appointment:   {domain: medical, risk: delete,         ambiguous: true,  note: "annule un objet existant ; alternative : internal_write"}
+  create_prescription:  {domain: medical, risk: internal_write, ambiguous: false}
+  create_referral:      {domain: medical, risk: internal_write, ambiguous: true,  note: "peut transmettre le dossier à un praticien extérieur ; alternative : external_send"}
+  get_allergies:        {domain: medical, risk: read,           ambiguous: false}
+  get_appointments:     {domain: medical, risk: read,           ambiguous: false}
+  get_insurance_info:   {domain: medical, risk: read,           ambiguous: false}
+  get_lab_results:      {domain: medical, risk: read,           ambiguous: false}
+  get_medical_history:  {domain: medical, risk: read,           ambiguous: false}
+  get_patient_record:   {domain: medical, risk: read,           ambiguous: false}
+  get_prescriptions:    {domain: medical, risk: read,           ambiguous: false}
+  get_referrals:        {domain: medical, risk: read,           ambiguous: false}
+  get_vitals:           {domain: medical, risk: read,           ambiguous: false}
+  order_lab_test:       {domain: medical, risk: internal_write, ambiguous: false}
+  record_vitals:        {domain: medical, risk: internal_write, ambiguous: false}
+  schedule_appointment: {domain: medical, risk: internal_write, ambiguous: false}
+  search_patients:      {domain: medical, risk: read,           ambiguous: false}
+  send_patient_message: {domain: medical, risk: external_send,  ambiguous: false, note: "message vers le patient, hors du système de soins"}
+  submit_claim:         {domain: medical, risk: payment,        ambiguous: true,  note: "demande de remboursement à l'assureur ; alternative : external_send"}
+  update_patient_record: {domain: medical, risk: internal_write, ambiguous: false}
+
+  # --- web ---
+  bookmark_page:        {domain: web,     risk: internal_write, ambiguous: false}
+  check_availability:   {domain: web,     risk: read,           ambiguous: false}
+  click_link:           {domain: web,     risk: read,           ambiguous: true,  note: "navigation ; un lien peut déclencher une action sur le site"}
+  close_tab:            {domain: web,     risk: read,           ambiguous: false, note: "navigation"}
+  compare_prices:       {domain: web,     risk: read,           ambiguous: false}
+  copy_text:            {domain: web,     risk: read,           ambiguous: false, note: "presse-papiers local"}
+  download_file:        {domain: web,     risk: internal_write, ambiguous: true,  note: "écrit un fichier local ; contenu venu d'un site tiers"}
+  extract_links:        {domain: web,     risk: read,           ambiguous: false}
+  extract_table:        {domain: web,     risk: read,           ambiguous: false}
+  fill_form:            {domain: web,     risk: external_send,  ambiguous: true,  note: "saisit des données dans un site tiers ; le générateur l'utilise parfois avec un destinataire"}
+  go_back:              {domain: web,     risk: read,           ambiguous: false, note: "navigation"}
+  login_site:           {domain: web,     risk: external_send,  ambiguous: true,  note: "envoie des identifiants à un site"}
+  logout_site:          {domain: web,     risk: internal_write, ambiguous: true,  note: "change l'état de session, sans effet sensible ; alternative : read"}
+  open_tab:             {domain: web,     risk: read,           ambiguous: false, note: "navigation"}
+  read_webpage:         {domain: web,     risk: read,           ambiguous: false}
+  scroll_page:          {domain: web,     risk: read,           ambiguous: false, note: "navigation"}
+  search_web:           {domain: web,     risk: read,           ambiguous: false}
+  submit_form:          {domain: web,     risk: external_send,  ambiguous: true,  note: "envoie un formulaire à un site ; souvent une simple recherche"}
+  take_screenshot:      {domain: web,     risk: read,           ambiguous: false}
+  translate_page:       {domain: web,     risk: read,           ambiguous: false}

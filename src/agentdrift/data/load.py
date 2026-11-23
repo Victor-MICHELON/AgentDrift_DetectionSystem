@@ -150,22 +150,25 @@ def write(tables: dict[str, pd.DataFrame], out_dir: Path = INTERIM) -> None:
         df.to_parquet(out_dir / f"{name}.parquet", index=False)
 
 
-def _read(name: str, include_test: bool) -> pd.DataFrame:
-    path = INTERIM / f"{name}.parquet"
+def _read(name: str, include_test: bool, anonymized: bool = False) -> pd.DataFrame:
+    path = INTERIM / f"{name}{'_anon' if anonymized else ''}.parquet"
     if not path.exists():
-        raise FileNotFoundError(f"{path} missing: run `python -m agentdrift.data.load` first")
+        cmd = "agentdrift.data.anonymize" if anonymized else "agentdrift.data.load"
+        raise FileNotFoundError(f"{path} missing: run `python -m {cmd}` first")
     df = pd.read_parquet(path)
     return df if include_test else df[df["origin_split"] != "test"].reset_index(drop=True)
 
 
-def read_trajectories(include_test: bool = False) -> pd.DataFrame:
-    """Trajectory table. The fixed test set (35 templates) is excluded unless include_test=True."""
-    return _read("trajectories", include_test)
+def read_trajectories(include_test: bool = False, anonymized: bool = False) -> pd.DataFrame:
+    """Trajectory table. The fixed test set (35 templates) is excluded unless include_test=True.
+    anonymized=True reads the world-anonymised version (mandatory for any model, leak L9)."""
+    return _read("trajectories", include_test, anonymized)
 
 
-def read_steps(include_test: bool = False) -> pd.DataFrame:
-    """Step table. The fixed test set (35 templates) is excluded unless include_test=True."""
-    return _read("steps", include_test)
+def read_steps(include_test: bool = False, anonymized: bool = False) -> pd.DataFrame:
+    """Step table. The fixed test set (35 templates) is excluded unless include_test=True.
+    anonymized=True reads the world-anonymised version (mandatory for any model, leak L9)."""
+    return _read("steps", include_test, anonymized)
 
 
 def read_templates() -> pd.DataFrame:

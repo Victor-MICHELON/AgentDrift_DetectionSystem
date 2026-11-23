@@ -8,7 +8,7 @@
 
 | # | Date | Author | Decision | Project step | Linked audit |
 |---|---|---|---|---|---|
-| P1 | 2026-11-20 | Victor MICHELON | Scope and leakage rules of the exploratory data analysis | Step 2.1 | — |
+| P1 | 2026-11-20 | Victor MICHELON | Scope and leakage rules of the exploratory data analysis | Step 2.1 | A1 |
 | P2 | | | | | |
 | P3 | | | | | |
 | P4 | | | | | |
@@ -163,5 +163,5 @@ the reported numbers are to them, and which conclusions would change if they wer
 
 - Produced: one function per table in `audit.py`, a validated colour-blind-safe palette in `plots.py`, a headless runner writing `metrics.json`, CSV tables and 17 figures, and a notebook (sections A0–A10) that runs in about 12 s.
 - Checked: shortcut baselines read train only and are scored on val; t-SNE on dev steps only; totals equal the schema validation; full execution on the pinned versions (2 pandas 3 / regex failures fixed).
-- Changed after review: several generated findings were not supported by the computed tables (e.g. ATBench tool counts inverted, "never" contradicted by 29 occurrences) and some numbers were typed by hand; all rewritten from computed values.
-- Linked audit: none yet.
+- Changed after review: several generated findings were not supported by the computed tables (e.g. "generic" repeated observations, "never" contradicted by 29 occurrences, "often" for a 5 % against 3 % difference, world sharing not computed) and some numbers were typed by hand; all rewritten from computed values.
+- Linked audit: A1 (see [AI_AUDIT.md](AI_AUDIT.md)).

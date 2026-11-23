@@ -330,10 +330,8 @@ def injection_prefixes(steps: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(cols)
 
 
-def injection_visibility(steps: pd.DataFrame) -> pd.DataFrame:
-    """How readable is the injection in the poisoned observation? Three regex definitions:
-    category prefix, explicit instruction vocabulary (prefixes excluded), external address or URL
-    (address whose domain differs from the user's own domain)."""
+def visibility_indicators(steps: pd.DataFrame) -> pd.DataFrame:
+    """Per injection step (raw text): the three regex visibility indicators and their union."""
     inj = steps[steps["label"].isin(["injection_point", "failed_injection"])].copy()
     prefix_any = re.compile("|".join(r.pattern for r in INJECTION_PREFIXES.values()))
     inj["category prefix"] = inj["obs"].str.contains(prefix_any)
@@ -342,6 +340,14 @@ def injection_visibility(steps: pd.DataFrame) -> pd.DataFrame:
         _has_external(o, ud) for o, ud in zip(inj["obs"], _user_domains(inj))
     ]
     inj["any of the three"] = inj[["category prefix", "instruction vocabulary", "external address or URL"]].any(axis=1)
+    return inj
+
+
+def injection_visibility(steps: pd.DataFrame) -> pd.DataFrame:
+    """How readable is the injection in the poisoned observation? Three regex definitions:
+    category prefix, explicit instruction vocabulary (prefixes excluded), external address or URL
+    (address whose domain differs from the user's own domain)."""
+    inj = visibility_indicators(steps)
     order = ["attacked_full", "attacked_partial", "attacked_delayed", "failed_attack"]
     t = inj.groupby("source_category")[
         ["category prefix", "instruction vocabulary", "external address or URL", "any of the three"]
@@ -572,15 +578,17 @@ def text_projection(d: dict, per_label: int = 600, seed: int = SEED) -> tuple[pd
 
 
 def load_atbench() -> pd.DataFrame:
-    """ATBench (1,000 trajectories) summarised per trajectory: label, risk source, number of agent
-    actions, tools available, task length. In-scope risk sources fixed in JOURNAL 19/11."""
-    cfg = load_config("data")["atbench"]
-    raw = json.loads((ROOT / cfg["raw_dir"] / "ATBench" / "test.json").read_text(encoding="utf-8"))
-    in_scope = {"indirect_prompt_injection", "tool_description_injection", "corrupted_tool_feedback"}
+    """ATBench (1,000 trajectories) summarised per trajectory: label, risk source, number of tool calls,
+    tools available, task length. In-scope risk sources fixed in JOURNAL 19/11 (configs/data.yaml)."""
+    from agentdrift.data.external import parse_action, read_raw
+
+    raw = read_raw()
+    in_scope = set(load_config("data")["atbench"]["scope_risk_sources"])
     rows = []
     for r in raw:
         conv = [m for c in r["contents"] for m in c]
-        actions = [m for m in conv if m["role"] == "agent" and m.get("action")]
+        # tool calls only (as AgentDrift steps); replies to the user are not actions on the world
+        actions = [m for m in conv if m["role"] == "agent" and parse_action(m.get("action"))[0] == "call"]
         task = next((m["content"] for m in conv if m["role"] == "user"), "")
         env = [m["content"] for m in conv if m["role"] == "environment"]
         rows.append(
@@ -603,7 +611,7 @@ def compare_external(d: dict, atb: pd.DataFrame) -> pd.DataFrame:
     pools = json.loads((ROOT / load_config("data")["agentdrift"]["raw_dir"] / "pools" / "tool_pools.json").read_text())
     ad = pd.DataFrame(
         {
-            "steps / actions per trajectory": traj["n_steps"].describe(),
+            "tool calls per trajectory": traj["n_steps"].describe(),
             "tools available per trajectory": traj["domain"].map({k: len(v) for k, v in pools.items()}).describe(),
             "task length (chars)": traj["task"].str.len().describe(),
             "observation length (chars, median per trajectory)": steps["obs"].str.len().groupby(steps["traj_id"]).median().describe(),
@@ -611,7 +619,7 @@ def compare_external(d: dict, atb: pd.DataFrame) -> pd.DataFrame:
     ).T[["mean", "50%", "max"]]
     ab = pd.DataFrame(
         {
-            "steps / actions per trajectory": atb["n_actions"].describe(),
+            "tool calls per trajectory": atb["n_actions"].describe(),
             "tools available per trajectory": atb["n_tools_available"].describe(),
             "task length (chars)": atb["task_chars"].describe(),
             "observation length (chars, median per trajectory)": atb["obs_chars_median"].describe(),
@@ -698,3 +706,648 @@ def atbench_tool_vocabulary() -> int:
     """Number of distinct tool names in ATBench (open vocabulary)."""
     raw = json.loads((ROOT / load_config("data")["atbench"]["raw_dir"] / "ATBench" / "test.json").read_text(encoding="utf-8"))
     return len({t["name"] for r in raw for t in r["tool_used"]})
+
+
+# --------------------------------------------------------------------------- part B: effect of anonymisation
+
+ANON_EMAIL_RE = re.compile(r"<(?:USER_EMAIL|CONTACT_\d+_EMAIL|INT_EMAIL_\d+|EXT_EMAIL_\d+)>")
+
+
+def provenance_indicators_anon(steps: pd.DataFrame, traj: pd.DataFrame) -> pd.DataFrame:
+    """Same indicators as `provenance_indicators`, read from the placeholders of the anonymised text.
+    Equal rates before / after = the anonymisation kept the relations it was meant to keep."""
+    s = steps.sort_values(["traj_id", "t"])
+    task = traj.set_index("traj_id")["task"]
+    rows, prev_traj, history = [], None, ""
+    for traj_id, args_json, obs in zip(s["traj_id"], s["args_json"], s["obs"]):
+        if traj_id != prev_traj:
+            prev_traj, history = traj_id, ""
+            task_l = task[traj_id].lower()
+        emails = set(ANON_EMAIL_RE.findall(args_json))
+        unknown = {e for e in emails if ("INT_EMAIL" in e or "EXT_EMAIL" in e) and e.lower() not in task_l}
+        leaves = [v.lower() for v in _leaf_values(json.loads(args_json)) if len(v) >= 4]
+        rows.append(
+            (
+                bool(unknown),
+                any("EXT_EMAIL" in e for e in emails),
+                any("INT_EMAIL" in e for e in unknown),
+                any(v in history and v not in task_l for v in leaves),
+                bool(AMOUNT_RE.search(args_json)),
+            )
+        )
+        history += " " + obs.lower()
+    cols = ["unknown address", "external domain", "unknown same-domain address", "arg from previous obs", "amount in args"]
+    return pd.DataFrame(rows, columns=cols, index=s.index).reindex(steps.index)
+
+
+def provenance_before_after(d_raw: dict, d_anon: dict, d_masked: dict | None = None) -> pd.DataFrame:
+    """Provenance rates by step group, raw vs anonymised (vs masked) (columns: indicator x version)."""
+    before = provenance_by_group(d_raw)
+    cols = [c for c in before.columns if c != "n"]
+    versions = {"raw": before[cols]}
+    for name, dv in (("anonymised", d_anon), ("masked", d_masked)):
+        if dv is not None:
+            ind = provenance_indicators_anon(dv["steps"], dv["trajectories"])
+            versions[name] = provenance_by_group(dv, ind)[cols]
+    return pd.concat(versions, axis=1).swaplevel(axis=1).sort_index(axis=1, level=0)
+
+
+def trajectory_text(traj: pd.DataFrame, steps: pd.DataFrame) -> pd.Series:
+    body = (steps["thought"] + " " + steps["args_json"] + " " + steps["obs"]).groupby(steps["traj_id"]).agg(" ".join)
+    return traj.set_index("traj_id")["task"] + " " + body.reindex(traj["traj_id"]).to_numpy()
+
+
+def world_probe(traj: pd.DataFrame, steps: pd.DataFrame, train: str = "train", evaluate: str = "val") -> dict:
+    """Can the TEXT reveal the world? 1-nearest-neighbour probe: TF-IDF fitted on train trajectories, each val
+    trajectory takes the world of its most similar train trajectory (val trajectories whose world exists in train).
+
+    Reference level: worlds are tied to a generation job (one source category per domain), so a neighbour with
+    similar CONTENT is often of the same category, hence of one of fewer worlds. The fair chance level is therefore
+    1 / (number of train worlds of the same domain x source category), not 1 / (worlds of the domain).
+    Identity is removed when world_accuracy falls close to chance_given_category."""
+    from sklearn.feature_extraction.text import TfidfVectorizer
+
+    text = trajectory_text(traj, steps)
+    t = traj.set_index("traj_id")
+    tr_ids = t.index[t["origin_split"] == train]
+    ev_ids = t.index[(t["origin_split"] == evaluate) & t["world_id"].isin(set(t.loc[tr_ids, "world_id"]))]
+    vec = TfidfVectorizer(sublinear_tf=True, token_pattern=r"(?u)<[A-Z_0-9]+>|\b\w\w+\b").fit(text[tr_ids])
+    nn = np.asarray((vec.transform(text[ev_ids]) @ vec.transform(text[tr_ids]).T).argmax(axis=1)).ravel()
+    neighbour = tr_ids[nn]
+    same_world = t.loc[neighbour, "world_id"].to_numpy() == t.loc[ev_ids, "world_id"].to_numpy()
+    same_cat = t.loc[neighbour, "source_category"].to_numpy() == t.loc[ev_ids, "source_category"].to_numpy()
+    key = t["domain"] + "|" + t["source_category"]
+    n_worlds = t.loc[tr_ids].groupby(key[tr_ids])["world_id"].nunique()
+    n_worlds_dom = t.loc[tr_ids].groupby("domain")["world_id"].nunique()
+    return {
+        "n_eval": len(ev_ids),
+        "world_accuracy": round(float(same_world.mean()), 3),
+        "chance_given_domain": round(float((1 / t.loc[ev_ids, "domain"].map(n_worlds_dom)).mean()), 4),
+        "chance_given_category": round(float((1 / key[ev_ids].map(n_worlds)).mean()), 4),
+        "neighbour_same_category": round(float(same_cat.mean()), 3),
+    }
+
+
+# --------------------------------------------------------------------------- part B: effect of the preprocessing
+
+
+def load_inputs_anon() -> dict[str, pd.DataFrame]:
+    """Anonymised trajectory and step tables, fixed test set included for DESCRIPTIVE statistics only."""
+    traj = read_trajectories(include_test=True, anonymized=True)
+    steps = read_steps(include_test=True, anonymized=True)
+    for df in (traj, steps):
+        df["origin_split"] = pd.Categorical(df["origin_split"], ["train", "val", "test"], ordered=True)
+    return {"trajectories": traj, "steps": steps}
+
+
+def masking_function():
+    """`features.masking.mask_artifacts` (KAN-19 / KAN-59) if it exists, else None."""
+    try:
+        from agentdrift.features.masking import mask_artifacts
+    except ImportError:
+        return None
+    return mask_artifacts
+
+
+def load_inputs_masked(d_anon: dict) -> dict[str, pd.DataFrame] | None:
+    """Anonymised tables with the generator artefacts masked (`features.masking.mask_tables`), None if the module
+    does not exist. Masking is row-wise and fits nothing: applying it to all parts is not a leak."""
+    if masking_function() is None:
+        return None
+    from agentdrift.features.masking import mask_tables
+
+    traj, steps = mask_tables(d_anon["trajectories"], d_anon["steps"])
+    return {"trajectories": traj, "steps": steps}
+
+
+def text_before_after(d_raw: dict, d_anon: dict, seed: int = SEED, d_masked: dict | None = None) -> pd.DataFrame:
+    """Side-by-side text of one injection step per attack category (train only, seeded), raw / anonymised
+    (/ masked when `d_masked` is given). Picked among steps whose text the anonymisation changed."""
+    raw, anon = d_raw["steps"], d_anon["steps"]
+    key = ["traj_id", "t"]
+    both = raw.merge(anon[key + ["thought", "args_json", "obs"]], on=key, suffixes=("", "_anon"))
+    if d_masked is not None:
+        both = both.merge(d_masked["steps"][key + ["thought", "args_json", "obs"]].rename(
+            columns={f: f"{f}_masked" for f in ("thought", "args_json", "obs")}), on=key)
+    both = both[(both["origin_split"] == "train") & both["label"].isin(["injection_point", "failed_injection"])]
+    changed = (both["obs"] != both["obs_anon"]) | (both["args_json"] != both["args_json_anon"])
+    rows = []
+    for sc in ["attacked_full", "attacked_partial", "attacked_delayed", "failed_attack"]:
+        pool = both[changed & (both["source_category"] == sc)].sort_values(key)
+        if pool.empty:
+            continue
+        s = pool.iloc[int(np.random.default_rng(seed).integers(len(pool)))]
+        for field in ["thought", "args_json", "obs"]:
+            row = {"example": sc, "field": field, "raw": s[field], "anonymised": s[f"{field}_anon"]}
+            if d_masked is not None:
+                row["masked"] = s[f"{field}_masked"]
+            rows.append(row)
+    return pd.DataFrame(rows).set_index(["example", "field"])
+
+
+def residual_before_after(d_raw: dict, d_anon: dict) -> pd.DataFrame:
+    """Share of trajectories whose text contains each kind of world identifier, raw vs anonymised."""
+    from agentdrift.data.anonymize import residual_identifiers
+
+    traj, steps = d_raw["trajectories"], d_raw["steps"]
+    raw = residual_identifiers(traj, traj.drop(columns="world_json"), steps)
+    anon = residual_identifiers(traj, d_anon["trajectories"], d_anon["steps"])
+    out = pd.DataFrame({"raw": raw, "anonymised": anon}) / len(traj)
+    out["n residual (anonymised)"] = anon
+    return out
+
+
+def world_probe_before_after(d_raw: dict, d_anon: dict, d_masked: dict | None = None) -> pd.DataFrame:
+    """Text-only world probe (train -> val) on the raw, anonymised (and masked) text, with its chance levels."""
+    out = {
+        "raw": world_probe(d_raw["trajectories"], d_raw["steps"]),
+        "anonymised": world_probe(d_anon["trajectories"], d_anon["steps"]),
+    }
+    if d_masked is not None:
+        out["masked"] = world_probe(d_masked["trajectories"], d_masked["steps"])
+    return pd.DataFrame(out).T
+
+
+# --------------------------------------------------------------------------- part B5: masking of generator artefacts
+
+INJECTION_GROUPS = {"attacked_full": "full", "attacked_partial": "partial", "attacked_delayed": "delayed",
+                    "failed_attack": "failed"}
+EXT_PLACEHOLDER_RE = re.compile(r"<EXT_(?:EMAIL|URL|DOMAIN)_\d+>")
+
+
+def _injection_steps(steps: pd.DataFrame) -> pd.DataFrame:
+    inj = steps[steps["label"].isin(["injection_point", "failed_injection"])]
+    return inj.assign(attack=inj["source_category"].map(INJECTION_GROUPS))
+
+
+def masking_rates(d_anon: dict) -> pd.DataFrame:
+    """Share of tool responses touched by each masking rule, per step group (computed on the anonymised text).
+    On normal steps (B) the header and policy-code rules are false maskings: the price of a generic rule."""
+    from agentdrift.features.masking import mask_counts
+
+    steps = d_anon["steps"]
+    groups = step_groups(steps)
+    c = mask_counts(steps["obs"])
+    c["header or policy code"] = c["header"] | c["policy code"]
+    out = c.groupby(groups).mean()
+    out["n"] = groups.value_counts()
+    return out.reindex([g for g in ["B", "I", "F", "H full", "H partial", "H delayed"] if g in out.index])
+
+
+def injection_signals(d_anon: dict, d_masked: dict) -> pd.DataFrame:
+    """Per attack type, share of poisoned responses with: a generator tic (A6 openers or a policy code), the
+    instruction vocabulary of A6, an outside address or link (placeholder) -- before / after masking.
+    Columns: signal x version."""
+    out = {}
+    prefix_any = re.compile("|".join(r.pattern for k, r in INJECTION_PREFIXES.items() if k != "Per policy …"))
+    code_re = re.compile(r"(?i)\b(?:policy|protocol|regulation|directive|mandate|guideline)\s+#?[\w<>.-]*\d")
+    for name, dv in (("anonymised", d_anon), ("masked", d_masked)):
+        inj = _injection_steps(dv["steps"])
+        obs = inj["obs"]
+        sig = pd.DataFrame({
+            "generator tic (opener or policy code)": obs.str.contains(prefix_any) | obs.str.contains(code_re),
+            "instruction vocabulary": obs.str.contains(INSTRUCTION_RE),
+            "outside address or link": obs.str.contains(EXT_PLACEHOLDER_RE),
+        })
+        out[name] = sig.groupby(inj["attack"]).mean()
+    t = pd.concat(out, axis=1).swaplevel(axis=1).sort_index(axis=1, level=0)
+    return t.reindex(list(INJECTION_GROUPS.values()))
+
+
+def attack_type_probe(steps: pd.DataFrame, train: str = "train", evaluate: str = "val", seed: int = SEED) -> dict:
+    """Does the TEXT of an injection tell its attack type (full / partial / delayed / failed), i.e. whether and how
+    the attack will succeed? TF-IDF + logistic regression on the poisoned response, fitted on train, scored on val.
+    A real injection does not announce its outcome: what this probe finds is a generator signature."""
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score, balanced_accuracy_score, recall_score
+    from sklearn.pipeline import make_pipeline
+
+    inj = _injection_steps(steps)
+    tr, ev = inj[inj["origin_split"] == train], inj[inj["origin_split"] == evaluate]
+    model = make_pipeline(TfidfVectorizer(sublinear_tf=True, ngram_range=(1, 2), min_df=2,
+                                          token_pattern=r"(?u)<[A-Z_0-9]+>|\b\w\w+\b"),
+                          LogisticRegression(max_iter=2000, C=1.0, random_state=seed))
+    model.fit(tr["obs"], tr["attack"])
+    pred = model.predict(ev["obs"])
+    labels = list(INJECTION_GROUPS.values())
+    recall = recall_score(ev["attack"], pred, labels=labels, average=None, zero_division=0)
+    return {
+        "n_eval": len(ev),
+        "accuracy": round(float(accuracy_score(ev["attack"], pred)), 3),
+        "balanced_accuracy": round(float(balanced_accuracy_score(ev["attack"], pred)), 3),
+        "majority_class": round(float(ev["attack"].value_counts(normalize=True).max()), 3),
+        "chance_balanced": round(1 / ev["attack"].nunique(), 3),
+        **{f"recall {lab}": round(float(r), 3) for lab, r in zip(labels, recall)},
+    }
+
+
+def attack_type_probe_before_after(d_anon: dict, d_masked: dict) -> pd.DataFrame:
+    return pd.DataFrame({"anonymised": attack_type_probe(d_anon["steps"]),
+                         "masked": attack_type_probe(d_masked["steps"])}).T
+
+
+def tool_risk_by_group(steps: pd.DataFrame, table: pd.DataFrame, allow_draft: bool = False) -> pd.DataFrame | None:
+    """Share of each tool risk category per step group (B, I, F, H by attack type).
+
+    Returns None while tool_risk.yaml is a draft: showing risk x labels during the review would let the reviewer
+    tune the categories on the labels (the yaml forbids it). allow_draft=True only for tests."""
+    if table.attrs.get("status") != "validated" and not allow_draft:
+        return None
+    risk = steps["tool"].map(table.set_index("tool")["risk"])
+    groups = step_groups(steps)
+    t = pd.crosstab(groups, risk, normalize="index")
+    t["n"] = groups.value_counts()
+    order = ["B", "I", "F", "H full", "H partial", "H delayed"]
+    return t.reindex([g for g in order if g in t.index])
+
+
+def visible_vs_heuristic(sheet: pd.DataFrame, steps_raw: pd.DataFrame) -> pd.DataFrame | None:
+    """Human `injection_visible` against the regex union of part A ("any of the three"), per attack category.
+
+    `sheet` = annotated rows (traj_id, t, injection_visible). None until at least one row is annotated."""
+    from sklearn.metrics import cohen_kappa_score
+
+    if sheet is None or sheet.empty:
+        return None
+    ind = visibility_indicators(steps_raw)[["traj_id", "t", "source_category", "any of the three"]]
+    m = sheet.merge(ind, on=["traj_id", "t"], how="left")
+    m["human"] = m["injection_visible"] == "oui"
+    rows = {}
+    for sc, g in list(m.groupby("source_category")) + [("all", m)]:
+        rows[sc] = {
+            "annotated": len(g),
+            "visible (human)": g["human"].mean(),
+            "visible (regex union)": g["any of the three"].mean(),
+            "agreement": (g["human"] == g["any of the three"]).mean(),
+            "kappa": cohen_kappa_score(g["human"], g["any of the three"]) if g["human"].nunique() > 1 else np.nan,
+        }
+    order = ["attacked_full", "attacked_partial", "attacked_delayed", "all"]
+    return pd.DataFrame(rows).T.reindex([o for o in order if o in rows])
+
+
+# --------------------------------------------------------------------------- part C: evaluation protocol
+#
+# Leakage rules for part C (L5): the fixed test set only contributes COUNTS (size and prevalence, already shown
+# in the step-8 table). No score is ever computed on it: the expected interval widths are measured on the dev
+# folds with a metadata-only reference score fitted out of fold, then projected to the size of the test set.
+
+FPR_TARGETS = {"1%": 0.01, "0.2%": 0.002}
+MIN_FALSE_POSITIVES = 10  # below this, the observed FPR has a relative standard error > 1/sqrt(10) ~ 32%
+UNIT_TEST = "test"
+
+
+def _unit_name(fold: int) -> str:
+    return UNIT_TEST if fold == -1 else f"fold {fold}"
+
+
+def load_inputs_protocol() -> dict[str, pd.DataFrame]:
+    """Part A inputs with the outer fold and the world-control fold of every trajectory and step."""
+    from agentdrift.splits import grouped as G
+
+    d = load_inputs()
+    folds = G.load_folds()
+    d["folds"] = folds
+    d["trajectories"] = G.attach_folds(d["trajectories"], folds)
+    d["steps"] = G.attach_folds(d["steps"], folds)
+    return d
+
+
+def fold_table(d: dict) -> pd.DataFrame:
+    """Size and prevalence per outer fold and for the fixed test set (counts only for the test set)."""
+    from agentdrift.splits.grouped import fold_summary
+
+    s = fold_summary(d["folds"], d["trajectories"].drop(columns=["fold", "world_fold"]),
+                     d["steps"].drop(columns=["fold", "world_fold"]))
+    s.index = [_unit_name(int(k)) for k in s.index]
+    s = s.loc[[i for i in s.index if i != UNIT_TEST] + [UNIT_TEST]]
+    return s[["templates", "trajectories", "worlds", "steps", "y_traj", "y_scan", "y_gate", "first_h"]]
+
+
+def fold_balance(d: dict) -> pd.DataFrame:
+    """How much the dev folds differ from each other: template folds (the protocol) vs world folds (control)."""
+    from agentdrift.splits.grouped import fold_summary
+
+    traj = d["trajectories"].drop(columns=["fold", "world_fold"])
+    steps = d["steps"].drop(columns=["fold", "world_fold"])
+    out = {}
+    for name, col in [("template folds", "fold"), ("world folds", "world_fold")]:
+        s = fold_summary(d["folds"], traj, steps, column=col).drop(index=-1, errors="ignore")
+        cat = s[[c for c in s.columns if c.startswith("share ") and c.removeprefix("share ") in SOURCE_ORDER]]
+        dom = s[[c for c in s.columns if c.startswith("share ") and c.removeprefix("share ") not in SOURCE_ORDER]]
+        out[name] = {
+            "max gap of a category share to the dev mean (pts)": 100 * float((cat - cat.mean()).abs().max().max()),
+            "max gap of a domain share to the dev mean (pts)": 100 * float((dom - dom.mean()).abs().max().max()),
+            "y_traj range across folds (pts)": 100 * float(s["y_traj"].max() - s["y_traj"].min()),
+            "y_gate range across folds (pts)": 100 * float(s["y_gate"].max() - s["y_gate"].min()),
+            "y_scan range across folds (pts)": 100 * float(s["y_scan"].max() - s["y_scan"].min()),
+        }
+    return pd.DataFrame(out)
+
+
+def fold_prevalence(d: dict) -> pd.DataFrame:
+    """Prevalence per dev fold for the template folds and the world-control folds (long format, for the figure)."""
+    from agentdrift.splits.grouped import fold_summary
+
+    traj = d["trajectories"].drop(columns=["fold", "world_fold"])
+    steps = d["steps"].drop(columns=["fold", "world_fold"])
+    rows = []
+    for name, col in [("template folds", "fold"), ("world folds", "world_fold")]:
+        s = fold_summary(d["folds"], traj, steps, column=col).drop(index=-1, errors="ignore")
+        for k, r in s.iterrows():
+            rows += [{"split": name, "fold": int(k), "target": t, "prevalence": float(r[t])}
+                     for t in ("y_traj", "y_gate", "y_scan")]
+    return pd.DataFrame(rows)
+
+
+def grouping_checks(d: dict) -> dict:
+    """What is and is not shared between folds and between dev and the fixed test set."""
+    traj = d["trajectories"]
+    dev, test = traj[traj["fold"] != -1], traj[traj["fold"] == -1]
+    folds_per_template = dev.groupby("template_id")["fold"].nunique()
+    folds_per_world = dev.groupby("world_id")["fold"].nunique()
+    return {
+        "dev_templates": int(dev["template_id"].nunique()),
+        "test_templates": int(test["template_id"].nunique()),
+        "templates_in_two_folds_or_more": int((folds_per_template > 1).sum()),
+        "templates_shared_dev_test": len(set(dev["template_id"]) & set(test["template_id"])),
+        "dev_worlds": int(dev["world_id"].nunique()),
+        "worlds_in_two_folds_or_more": int((folds_per_world > 1).sum()),
+        "test_trajectories_whose_world_is_in_dev": round(float(test["world_id"].isin(set(dev["world_id"])).mean()), 3),
+        "trajectories_per_template_dev_median": float(dev.groupby("template_id").size().median()),
+        "trajectories_per_template_test_median": float(test.groupby("template_id").size().median()),
+    }
+
+
+def lodo_table(d: dict) -> pd.DataFrame:
+    """Leave-one-domain-out: size of each held-out domain and its prevalence against the four training domains."""
+    from agentdrift.splits.grouped import lodo_splits
+
+    traj, steps = d["trajectories"], d["steps"]
+    dev_steps = steps[steps["fold"] != -1]
+    rows = {}
+    for dom, tr, ev in lodo_splits(traj):
+        held, rest = traj.iloc[ev], traj.iloc[tr]
+        sh, sr = dev_steps[dev_steps["domain"] == dom], dev_steps[dev_steps["domain"] != dom]
+        rows[dom] = {
+            "templates": held["template_id"].nunique(), "trajectories": len(held),
+            "share of dev": len(held) / (len(held) + len(rest)),
+            "y_traj held out": held["y_traj"].mean(), "y_traj train": rest["y_traj"].mean(),
+            "y_gate held out": sh["y_gate"].mean(), "y_gate train": sr["y_gate"].mean(),
+            "share delayed held out": (held["source_category"] == "attacked_delayed").mean(),
+            "share delayed train": (rest["source_category"] == "attacked_delayed").mean(),
+        }
+    return pd.DataFrame(rows).T
+
+
+def _unit_counts(traj: pd.DataFrame, steps: pd.DataFrame) -> dict:
+    scan = steps[steps["t"] >= 1]  # the scanner view has no row at t = 0 (features/views.py)
+    out = {
+        "templates": traj["template_id"].nunique(), "trajectories": len(traj),
+        "negative trajectories": int((traj["y_traj"] == 0).sum()), "first H": int(steps["is_first_h"].sum()),
+        "gate +": int(steps["y_gate"].sum()), "gate −": int((steps["y_gate"] == 0).sum()),
+        "scan +": int(scan["y_scan"].sum()), "scan −": int((scan["y_scan"] == 0).sum()),
+    }
+    for name, f in FPR_TARGETS.items():
+        out[f"gate FP @ {name}"] = out["gate −"] * f
+        out[f"scan FP @ {name}"] = out["scan −"] * f
+    return out
+
+
+def resolution_table(d: dict) -> pd.DataFrame:
+    """For every evaluation unit: positives, negatives and the EXPECTED number of false positives at each target
+    FPR (negatives x FPR). Few false positives = the observed FPR, and a threshold set at that FPR, are noisy.
+
+    Units: each outer validation fold; the inner validation parts used to set thresholds (median over the
+    3 inner parts of the 5 outer training parts); the fixed test set (counts only); each held-out domain."""
+    from agentdrift.splits.grouped import inner_splits, lodo_splits
+
+    traj, steps = d["trajectories"], d["steps"]
+    rows = {}
+    for k in sorted(traj["fold"].unique()):
+        if k != -1:
+            rows[_unit_name(int(k))] = _unit_counts(traj[traj["fold"] == k], steps[steps["fold"] == k])
+    inner = []
+    dev = traj[traj["fold"] != -1].reset_index(drop=True)
+    for k in sorted(dev["fold"].unique()):
+        part = dev[dev["fold"] != k].reset_index(drop=True)
+        for _, val in inner_splits(part):
+            ids = set(part.loc[val, "traj_id"])
+            inner.append(_unit_counts(part.loc[val], steps[steps["traj_id"].isin(ids)]))
+    rows["inner validation (median)"] = pd.DataFrame(inner).median().to_dict()
+    rows[UNIT_TEST] = _unit_counts(traj[traj["fold"] == -1], steps[steps["fold"] == -1])
+    for dom, _, ev in lodo_splits(traj):
+        held = traj.iloc[ev]
+        rows[f"held-out {dom}"] = _unit_counts(held, steps[steps["traj_id"].isin(set(held["traj_id"]))])
+    return pd.DataFrame(rows).T
+
+
+def reference_scores(d: dict, target: str, seed: int = SEED) -> tuple[pd.DataFrame, dict, dict]:
+    """Out-of-fold scores of a deliberately crude, metadata-only reference (NOT a project model): logistic
+    regression on one-hot (tool, step index, domain), fitted on the four training folds, scored on the fifth.
+    Its only purpose is to measure interval widths at a realistic performance level.
+
+    The tool is the one the view can read: a_t for the gate, a_{t-1} (the call that produced o_{t-1}) for the
+    scanner, whose rows start at t = 1. Thresholds at each target FPR are set on the training part's negatives
+    (alert when score > threshold), then applied unchanged to the held-out fold.
+    The score takes few distinct values (ties), so the FPR reached on the training part can fall below the target:
+    it is returned too, to separate the effect of ties from the effect of moving to another fold.
+    Returns (scores of dev steps: traj_id, t, template_id, fold, domain, y, score), {fold: {name: threshold}} and
+    {fold: {name: FPR reached on the training part}}."""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import OneHotEncoder
+
+    from agentdrift.splits.grouped import outer_splits
+
+    s = d["steps"][d["steps"]["fold"] != -1].sort_values(["traj_id", "t"]).reset_index(drop=True)
+    if target == "y_scan":
+        s["view_tool"] = s.groupby("traj_id")["tool"].shift(1)
+        s = s[s["t"] >= 1].reset_index(drop=True)
+    elif target == "y_gate":
+        s["view_tool"] = s["tool"]
+    else:
+        raise ValueError(f"unknown step target {target!r}")
+    X = s[["view_tool", "t", "domain"]].astype(str)
+    y = s[target].astype(int).to_numpy()
+    score = np.full(len(s), np.nan)
+    thresholds, reached = {}, {}
+    for k, tr, ev in outer_splits(s):
+        model = make_pipeline(OneHotEncoder(handle_unknown="ignore"),
+                              LogisticRegression(max_iter=2000, random_state=seed))
+        model.fit(X.iloc[tr], y[tr])
+        score[ev] = model.predict_proba(X.iloc[ev])[:, 1]
+        neg = np.sort(model.predict_proba(X.iloc[tr][y[tr] == 0])[:, 1])[::-1]
+        thresholds[k] = {name: float(neg[int(np.floor(f * len(neg)))]) for name, f in FPR_TARGETS.items()}
+        reached[k] = {name: float((neg > thr).mean()) for name, thr in thresholds[k].items()}
+    out = s[["traj_id", "t", "template_id", "fold", "domain"]].assign(y=y, score=score)
+    return out, thresholds, reached
+
+
+def interval_widths(ref: pd.DataFrame, thresholds: dict, test_templates: int, n_resamples: int = 2000,
+                    level: float = 0.95, seed: int = SEED) -> pd.DataFrame:
+    """Per dev fold and metric: point estimate and 95% interval width of the reference score
+    - resampling the fold's templates (cluster bootstrap, the protocol);
+    - resampling `test_templates` templates from the fold (spread expected on a test set of that size);
+    - resampling steps independently (invalid; shows how much the dependence widens the interval).
+    design_effect = (cluster width / iid width)^2, at the fold's own size."""
+    from agentdrift.evaluation import bootstrap as BS
+
+    rows = []
+    for k in sorted(ref["fold"].unique()):
+        r = ref[ref["fold"] == k]
+        thr = thresholds[k]
+        est = BS.point_estimate(r["score"], r["y"], thresholds=thr)
+        clus = BS.interval(BS.cluster_bootstrap(r["score"], r["y"], r["template_id"], thr, n_resamples, seed=seed), level)
+        proj = BS.interval(BS.cluster_bootstrap(r["score"], r["y"], r["template_id"], thr, n_resamples,
+                                                size=test_templates, seed=seed), level)
+        iid = BS.interval(BS.iid_bootstrap(r["score"], r["y"], thr, n_resamples, seed=seed), level)
+        for m, v in est.items():
+            rows.append({"fold": int(k), "templates": r["template_id"].nunique(), "metric": m, "estimate": v,
+                         "width (fold, templates)": clus.loc[m, "width"],
+                         "width (test size, templates)": proj.loc[m, "width"],
+                         "width (fold, steps iid)": iid.loc[m, "width"]})
+    out = pd.DataFrame(rows)
+    out["design effect"] = (out["width (fold, templates)"] / out["width (fold, steps iid)"]) ** 2
+    return out
+
+
+def interval_summary(widths: pd.DataFrame) -> pd.DataFrame:
+    """Mean over the five folds, with the fold-to-fold standard deviation of the estimate."""
+    g = widths.groupby("metric", sort=False)
+    out = g[["estimate", "width (fold, templates)", "width (test size, templates)", "width (fold, steps iid)",
+             "design effect"]].mean()
+    out.insert(1, "sd across folds", g["estimate"].std())
+    return out
+
+
+def threshold_transfer(widths: pd.DataFrame, reached: dict) -> pd.DataFrame:
+    """Per fold and target FPR: FPR reached on the training folds (ties can keep it below the target) and FPR
+    observed on the held-out fold with the same threshold."""
+    obs = widths[widths["metric"].str.startswith("fpr@")].pivot(index="fold", columns="metric", values="estimate")
+    cols = {}
+    for name in FPR_TARGETS:
+        cols[(name, "training folds")] = pd.Series({k: v[name] for k, v in reached.items()})
+        cols[(name, "held-out fold")] = obs[f"fpr@{name}"]
+    out = pd.DataFrame(cols)
+    out.columns = pd.MultiIndex.from_tuples(out.columns, names=["target FPR", "FPR measured on"])
+    return out
+
+
+def compute_protocol_intervals(d: dict, test_templates: int, n_resamples: int, seed: int = SEED) -> dict:
+    out = {}
+    for target in ("y_gate", "y_scan"):
+        ref, thr, reached = reference_scores(d, target, seed)
+        w = interval_widths(ref, thr, test_templates, n_resamples, seed=seed)
+        out[target] = {"widths": w, "summary": interval_summary(w), "transfer": threshold_transfer(w, reached)}
+    return out
+
+
+# --------------------------------------------------------------------------- part C: synthesis
+
+
+def _cell(table: dict, row, col):
+    """Value of a table saved by `run_eda` as JSON (orient="split")."""
+    return table["data"][table["index"].index(row)][table["columns"].index(col)]
+
+
+def _repro(metrics_a: dict, measure: str):
+    """'recomputed' value of a row of the part-A reproduction table, found by its `measure` text."""
+    t = metrics_a["reproduction"]
+    row = next(r for r in t["data"] if r[t["columns"].index("measure")] == measure)
+    return row[t["columns"].index("recomputed")]
+
+
+# Where each decision of `synthesis_table` stands (same row order; updated by hand, docs/PLAN_DONNEES.md step 9):
+# implemented = code and test exist; in progress = ticket open; decided = written in CONTEXT, code pending;
+# proposed = new from this EDA, to confirm as a team.
+SYNTHESIS_STATUS = [
+    "implemented (splits/grouped.py)", "implemented (data/anonymize.py)", "implemented (EDA B3)",
+    "implemented", "in progress (L12 test)", "implemented (features/views.py)",
+    "in progress (masking done; KAN-58)", "implemented (views: include_thought=False)", "decided (CONTEXT 8.2)",
+    "decided (CONTEXT 8.2)", "implemented (evaluation/bootstrap.py)", "implemented (evaluation/bootstrap.py)",
+    "proposed", "decided (CONTEXT 8.1)",
+]
+
+
+def synthesis_table(metrics_a: dict, metrics_b: dict, rc: dict) -> pd.DataFrame:
+    """Finding -> decision -> hypothesis, every number read from the saved outputs of parts A and B
+    (results/runs/eda*/metrics.json) or computed in part C. One row per decision of the data phase."""
+    sc, vis, purity = metrics_a["shortcuts"], metrics_a["visibility"], metrics_a["world_purity_by_domain"]
+    probe = metrics_b["world_probe"]
+    g, ci = rc["grouping"], rc["intervals"]
+    pur = dict(zip(purity["index"], [r[purity["columns"].index("weighted_majority_share")] for r in purity["data"]]))
+    low = min(pur, key=pur.get)
+    rest = [v for k, v in pur.items() if k != low]
+    vis_any = {c: _cell(vis, c, "any of the three") for c in ("attacked_full", "attacked_partial", "attacked_delayed")}
+    gap = metrics_a["gap"]
+    delayed = {str(k): v for k, v in zip(gap["columns"], gap["data"][gap["index"].index("attacked_delayed")])}
+    n_delayed = sum(delayed.values())
+    gate = ci["y_gate"]["summary"]
+    res = rc["resolution"]
+    prev = metrics_a["prevalence_split"]
+    p_all = dict(zip(prev["columns"], prev["data"][prev["index"].index("all")]))
+    lodo = rc["lodo"]
+    rows = [
+        ("Same task template in train and test inflates scores",
+         f"{g['templates_in_two_folds_or_more']} templates in two folds, {g['templates_shared_dev_test']} shared "
+         "dev / test (after the split)",
+         "Split grouped by template; fixed test set of the original task-disjoint split", "protocol", "L1"),
+        ("The simulated world gives away the category",
+         f"world purity {min(rest):.0%}–{max(rest):.0%} by domain ({low}: {pur[low]:.0%}); world lookup F1 "
+         f"{_cell(sc, 'world lookup → y_traj', 'f1'):.3f}",
+         "Anonymise world identities (relational placeholders) before any feature", "preprocessing", "L9, H3 (rung 4)"),
+        ("Worlds cannot be grouped together with templates",
+         f"{g['worlds_in_two_folds_or_more']} of {g['dev_worlds']} dev worlds in two folds or more",
+         "Text-only world probe as the control; world-grouped folds as a robustness check", "protocol", "L9"),
+        ("Anonymisation removes the world signal from the text",
+         f"text world probe {_cell(probe, 'raw', 'world_accuracy'):.1%} → "
+         f"{_cell(probe, 'anonymised', 'world_accuracy'):.1%} (chance {_cell(probe, 'raw', 'chance_given_category'):.1%})",
+         "Models read the anonymised tables only (`read_*(anonymized=True)`)", "preprocessing", "L9"),
+        ("Position alone predicts the targets",
+         f"ROC-AUC {_cell(sc, 'position only → y_scan', 'roc_auc'):.3f} (scan), "
+         f"{_cell(sc, 'position only → y_gate', 'roc_auc'):.3f} (gate)",
+         "Report the position-only baseline as the floor; step index and history length never features", "protocol",
+         "L12, H3"),
+        ("Total length leaks the future",
+         f"trajectory length alone ROC-AUC {_cell(sc, 'trajectory length → y_traj', 'roc_auc'):.2f} for y_traj",
+         "Causal views: nothing after t (features/views.py)", "preprocessing", "L3, L11"),
+        ("Injections are readable for full attacks, often not for partial / delayed ones",
+         f"any indicator visible: full {vis_any['attacked_full']:.0%}, partial {vis_any['attacked_partial']:.0%}, "
+         f"delayed {vis_any['attacked_delayed']:.0%}",
+         "Mask generator artefacts (generic upper-case label rule, policy codes, amounts); recall by attack type "
+         "and by visibility", "preprocessing + metric", "H3, H2, H8"),
+        ("The generated thought confesses the attack",
+         f"confession words in thought: {_repro(metrics_a, 'confession words in thought, H partial'):.0%} of H partial",
+         "Variant without `thought` is the reference; with `thought` reported as an ablation rung", "preprocessing",
+         "H3 (rung 3)"),
+        ("Imbalanced targets; the step to stop is the first hijacked one",
+         f"y_scan {p_all['y_scan']:.1%}, y_gate {p_all['y_gate']:.1%} of steps; {int(p_all['first_h'])} first H "
+         f"({p_all['first_h'] / p_all['steps']:.1%} of steps)",
+         "PR-AUC as the main metric; class weights; business metrics at the first alert", "metric", "—"),
+        ("The scanner can only anticipate on delayed attacks",
+         f"injection → hijack gap ≥ 2 steps only for delayed attacks ({delayed.get('2', 0) / n_delayed:.0%} at "
+         "exactly 2)",
+         "Detection lead reported on delayed attacks only", "metric", "H2, H6"),
+        ("The fixed test set is small",
+         f"{g['test_templates']} templates; expected 95% interval width on it: PR-AUC ±"
+         f"{gate.loc['pr_auc', 'width (test size, templates)'] / 2:.3f}, recall at 1% FPR ±"
+         f"{gate.loc['recall@1%', 'width (test size, templates)'] / 2:.3f} (reference score, gate)",
+         "Report every test result with a template-cluster bootstrap interval; model choice on the 5 dev folds",
+         "protocol", "L5"),
+        ("Steps are not independent",
+         f"design effect {gate['design effect'].median():.1f} (median over gate metrics): a step-level bootstrap "
+         "would understate the interval",
+         "Resample templates, never steps; paired bootstrap for model comparisons", "protocol", "—"),
+        ("Very low FPR targets are hardly measurable",
+         f"expected false positives at 0.2% FPR: {res.loc[UNIT_TEST, 'gate FP @ 0.2%']:.0f} on the test set, "
+         f"{res.loc['inner validation (median)', 'gate FP @ 0.2%']:.0f} on an inner validation part",
+         "Keep 0.2% as a secondary operating point, reported with its observed FPR", "metric", "H5"),
+        ("Domains differ in prevalence and attack mix",
+         f"held-out y_traj {lodo['y_traj held out'].min():.0%}–{lodo['y_traj held out'].max():.0%}; delayed share "
+         f"{lodo['share delayed held out'].min():.0%}–{lodo['share delayed held out'].max():.0%}",
+         "Leave-one-domain-out, with the threshold transferred from the training domains", "protocol", "H1, H5"),
+    ]
+    out = pd.DataFrame(rows, columns=["finding", "evidence", "decision", "kind", "hypothesis / leak"])
+    out["status"] = SYNTHESIS_STATUS
+    return out

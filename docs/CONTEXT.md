@@ -5,7 +5,7 @@
 > **Cadre :** Projet Machine Learning ESILV 2026 — groupe DIA 7
 > **Équipe :** Oscar DUJARDIN · Bertrand MAIGRE · Victor MICHELON · Jean-Baptiste PASTEAU
 > **Sources :** `Step1_ProjetML.pdf` (rendu Step 1), `SYNTHESE_PROJET_ML.md` (cadrage du 17/11/2026), consignes du cours (voir [INSTRUCTIONS.md](INSTRUCTIONS.md))
-> **Statut :** v1.1, 19/11/2026 (intègre l'audit des données, le brainstorming du 19/11 et l'article DriftNet). Document vivant : toute décision qui change le protocole est notée dans [JOURNAL.md](JOURNAL.md).
+> **Statut :** v1.2, 21/11/2026 (v1.1 du 19/11 : audit des données, brainstorming, article DriftNet ; v1.2 : chiffres recalculés par l'EDA partie A, critère d'anonymisation corrigé, split par gabarit tel qu'implémenté, cf. JOURNAL 20/11). Document vivant : toute décision qui change le protocole est notée dans [JOURNAL.md](JOURNAL.md).
 
 Ce document est la référence commune. Avant d'écrire du code ou de lancer une expérience, on vérifie qu'elle est cohérente avec ce fichier. Les éléments marqués **[À CONFIRMER]** dépendent de l'audit des données ou d'une vérification bibliographique.
 
@@ -81,7 +81,7 @@ et produit un score r_t = f(x_t) ∈ [0, 1], puis une décision d_t = π(r₁, �
 | Signale aussi | les injections que l'agent ignorera (tentatives résistées) | — |
 | Aveugle quand | l'injection n'est pas lisible dans o_{t−1} (fréquent pour les attaques partielles et retardées, §6.2) | l'action détournée ressemble à une action légitime (destinataire du même domaine, attaque partielle) |
 
-Dans AgentDrift, l'étape détournée suit **toujours immédiatement** l'injection pour les attaques complètes et partielles (83 % des attaques) : scanner et portail décident alors **au même instant t**. Le scanner n'a une avance réelle (2 à 3 étapes) que sur les 900 attaques retardées. L'intérêt du couple n'est donc pas surtout l'anticipation mais la **complémentarité** : cause contre effet, tentative contre réussite (approche adoptée le 19/11/2026).
+Dans AgentDrift, l'étape détournée suit **toujours immédiatement** l'injection pour les attaques complètes et partielles (83 % des attaques) : scanner et portail décident alors **au même instant t**. Le scanner n'a une avance réelle (2 à 4 étapes, 2 dans 93 % des cas) que sur les 900 attaques retardées. L'intérêt du couple n'est donc pas surtout l'anticipation mais la **complémentarité** : cause contre effet, tentative contre réussite (approche adoptée le 19/11/2026).
 
 **Cibles d'apprentissage** (labels par étape : B = bénigne, I = point d'injection, H = détournée, F = injection échouée) :
 
@@ -138,7 +138,7 @@ Baselines à base de mots sur les données simulées d'AgentDrift :
 - ≈ **87 %** des attaques stoppées au plus tard au premier appel dangereux, pour **1 %** de faux positifs par étape ;
 - ≈ **33 %** pour les attaques **retardées**, à **0,2 %** de faux positifs ;
 - la **provenance des arguments** donne un signal modeste mais stable entre domaines (AUC **0,61 à 0,73**) ;
-- **monde simulé + tâche seuls → F1 0,77** : c'est une **fuite** (raccourci) à neutraliser.
+- **monde simulé + tâche seuls → F1 0,77** : c'est une **fuite** (raccourci) à neutraliser. Reproduit le 20/11 avec le monde seul : **F1 0,838** sur val (ROC-AUC 0,961).
 
 Ces chiffres montrent qu'il y a de la matière, pas une performance réelle. Ils devront être **reproduits** dans notre pipeline (v0.1) avant d'être cités dans le rapport.
 
@@ -150,10 +150,11 @@ Ces chiffres montrent qu'il y a de la matière, pas une performance réelle. Ils
 | Baseline de surface réentraînée, article DriftNet | task-disjoint | 0,678 | 0,902 / 0,111 / 0,171 | 0,090 / 0,083 / 0,170 |
 | DriftNet (a posteriori, non anonymisé) | task-disjoint | 0,983 | 0,998 / 0,986 / 0,932 | 0,015 / 0,029 / 0,000 |
 
-**Mesures exploratoires du 19/11** (12 536 trajectoires, motifs simples, à reproduire dans `run_audit`) :
-- baseline « position seule » : ROC-AUC **0,754** sur `y_gate`, 0,52 sur `y_scan` ;
-- outil hors des `expected_tools` du gabarit : **69–81 %** des H complètes / retardées, 40 % des H partielles, **24–32 %** des étapes B ;
-- argument de a_t présent dans une `obs` antérieure mais pas dans la tâche : 32 % des H contre 16 % des B ;
+**Mesures exploratoires, recalculées par l'EDA partie A le 20/11** (`python -m agentdrift.pipelines.run_eda`, `results/runs/eda/reproduction.csv` ; ajusté sur train, évalué sur val ; les valeurs du 19/11 entre parenthèses quand elles diffèrent) :
+- baseline « position seule » : ROC-AUC **0,876** sur `y_scan` (0,52 : faux, les injections sont concentrées à t = 1) et **0,779** sur `y_gate` (0,754). C'est le **plancher à battre sur `y_scan`** ;
+- outil hors des `expected_tools` du gabarit (oracle) : 69 % des H complètes, 81 % des H retardées, 40 % des H partielles, 31 % des étapes B ;
+- argument de a_t présent dans une `obs` antérieure mais pas dans la tâche : **46 %** des H contre **19 %** des B (32 % / 16 %) ; 58 % des H partielles ;
+- longueur totale seule → `y_traj` : ROC-AUC 0,58 ;
 - aucun outil n'est réservé aux attaques : chaque outil vu en H apparaît aussi en B.
 
 ---
@@ -174,14 +175,14 @@ Ces chiffres montrent qu'il y a de la matière, pas une performance réelle. Ils
 ### 6.2 Limites connues d'AgentDrift (à traiter explicitement)
 - **Un seul générateur** : risque d'apprendre son style plutôt que l'attaque (→ H3, test externe).
 - **Trajectoires courtes** (≈ 6 étapes) et **injection très régulière** (étape 2 ou 3) : l'avance de détection possible n'est que de 1 à 2 étapes. **L'indice de l'étape seul peut prédire l'attaque**, c'est un raccourci à mesurer.
-- **Fuite d'identité du monde** : F1 0,77 sans regarder le contenu de l'agent ; dans 4 domaines sur 5, 95–99 % des trajectoires d'un monde sont dans une même catégorie. Parade : anonymisation obligatoire (JOURNAL 19/11).
+- **Fuite d'identité du monde** : F1 0,838 sans regarder le contenu de l'agent (recherche du monde, train → val) ; dans 4 domaines sur 5, 91–99 % des trajectoires d'un monde sont dans une même catégorie (email : 32 %). Parade : anonymisation obligatoire, faite le 20/11 (JOURNAL).
 - **Test fixe de 35 gabarits** (1 722 trajectoires, split `data_taskdisjoint/`) : intervalles de confiance larges. D'où la validation croisée groupée sur les 215 autres gabarits.
-- **Préfixes d'injection propres à chaque catégorie** : « CORRECTION: » (partielles), « SECURITY ALERT » / « URGENT … » (échouées), « NOTE: » (retardées). Le style de l'injection révèle si elle va réussir : artefact à masquer (H3).
-- **Injections souvent invisibles** dans les attaques partielles et retardées : mots d'injection présents dans l'`obs` du point d'injection pour 99,6 % des complètes et 79,5 % des échouées, mais **4,7 %** des partielles et **7 %** des retardées. Exemple : « Email … contains invoice number INV0023 and amount $1000. » est étiqueté `injection_point`. Le scanner ne peut pas les voir ; seul le portail peut agir (colonne `injection_visible`, H8).
-- **Écart injection → action détournée fixe** : 1 étape pour les complètes et partielles, 2 à 3 pour les retardées (§3.3).
+- **Préfixes d'injection propres à chaque catégorie** : « CORRECTION: » (partielles), « SECURITY ALERT » / « URGENT … » (échouées), « NOTE: » (retardées), « Per policy … » et « SYSTEM ALERT » (complètes), plus des variantes (`COMPLIANCE NOTICE:`, `ALERT:`…). Le style de l'injection révèle si elle va réussir : artefact à masquer (H3) par une **règle générique**, pas une liste (JOURNAL 20/11).
+- **Injections souvent invisibles** dans les attaques partielles et retardées. Au point d'injection, au moins un indice (préfixe, vocabulaire d'instruction, adresse ou URL externe) est présent pour 100 % des complètes et 99,9 % des échouées, mais **65 %** des partielles et **46 %** des retardées ; le vocabulaire d'instruction seul : 99,8 % / 82,6 % / **35 %** / **10 %** (expression plus large que le 19/11, qui donnait 4,7 % et 7 %). Exemple : « Email … contains invoice number INV0023 and amount $1000. » est étiqueté `injection_point`. Le scanner ne peut pas les voir ; seul le portail peut agir (colonne `injection_visible`, annotée à la main, H8).
+- **Écart injection → action détournée fixe** : 1 étape pour les complètes et partielles, 2 à 4 pour les retardées (2 : 837, 3 : 60, 4 : 3 ; corrigé le 20/11, §3.3).
 - **Adresses du même domaine** : dans les attaques partielles, le destinataire ajouté appartient souvent au domaine de l'utilisateur (`alex.taylor@edtech.io`). Adresse inconnue dans les arguments : 43 % des H complètes, 15 % des retardées, **4 %** des partielles, 2 % des B.
-- **`thought` qui avoue** : mots comme « the system says », « not requested », « suspicious » dans 44,5 % des H partielles et 21 % des étapes B des attaques échouées (étapes de « récupération » : « Wait — the user did not ask… »).
-- **Longueur** : trajectoires attaquées plus longues (6,07 étapes contre 5,44) : fuite si un modèle voit la longueur totale (L3).
+- **`thought` qui avoue** : mots comme « the system says », « not requested », « suspicious » dans **75 %** des H partielles (44,5 % avec l'expression du 19/11) et 21 % des étapes B des attaques échouées (étapes de « récupération » : « Wait — the user did not ask… »).
+- **Longueur** : trajectoires attaquées plus longues (5,93 étapes contre 5,45 ; 6,07 pour les seules attaques complètes) : fuite si un modèle voit la longueur totale (L3).
 - **Banking déséquilibré** : 2 136 trajectoires au lieu de 2 600 (rejets du générateur).
 
 ### 6.3 Audit en début de Step 2 *(fait le 19/11/2026, voir JOURNAL ; à reproduire dans `run_audit`)*
@@ -206,7 +207,7 @@ Toutes calculées **uniquement** à partir de x_t (passé + étape courante).
 | **Provenance des arguments** | les arguments de a_t viennent-ils de la tâche u, d'une réponse d'outil antérieure, ou de nulle part ? Destinataire / URL / montant présent dans u ? Destinataire nouveau **même s'il est du même domaine** (attaques partielles) | H1, H8 |
 | **Cohérence tâche ↔ action** | « surprise » de l'outil sachant la tâche, P(outil \| u) apprise sur les étapes bénignes du pli d'entraînement ; similarité u ↔ a_t ; cross-encoder (u, a_t) en v0.5. `expected_tools` n'est jamais une entrée : seulement une borne haute (oracle) | H8 |
 | **Indices d'injection** | marqueurs impératifs dans o_{t−1}, rupture de style, présence d'adresses ou d'URL nouvelles | H2 |
-| **Artefacts (à masquer)** | identité du monde (noms, sociétés, adresses → espaces réservés), préfixes d'injection (« CORRECTION: », « SECURITY ALERT », « NOTE: »), `ext-audit.com`, montants, `thought` | H3 |
+| **Artefacts (à masquer)** | identité du monde (noms, sociétés, adresses → espaces réservés : **anonymisation**, `data/anonymize.py`, toujours appliquée) ; préfixes d'injection (règle générique : étiquette en majuscules + « : », `Per policy <code>`), montants → `<AMOUNT>`, `thought` (**masquage H3**, `features/masking.py`, variante du rapport) | H3 |
 
 ### 7.2 Feuille de route des modèles (versions)
 
@@ -247,7 +248,7 @@ Toutes calculées **uniquement** à partir de x_t (passé + étape courante).
 
 ### 8.1 Découpage des données
 1. **Test interne fixe** : `data_taskdisjoint/test.jsonl`, **35 gabarits, 1 722 trajectoires**, mis de côté dès le départ, utilisé une seule fois par version finale. Résultat rapporté **avec intervalle de confiance** car l'échantillon est petit. Le split stratifié `data/` ne sert qu'à comparer avec l'article AgentDrift.
-2. **Validation croisée groupée** sur train + val fusionnés (**215 gabarits**) : `StratifiedGroupKFold` avec **groupe = gabarit de tâche**, strates = `source_category` × domaine. Aucune trajectoire d'un même gabarit dans deux plis. Graine fixée. Contrôle complémentaire : `GroupKFold` par monde + baseline « recherche du monde », qui doit tomber au hasard après anonymisation.
+2. **Validation croisée groupée** sur train + val fusionnés (**215 gabarits**) : `StratifiedGroupKFold` avec **groupe = gabarit de tâche**, strates = `source_category` × domaine. Aucune trajectoire d'un même gabarit dans deux plis. Graine fixée (42). Implémenté le 20/11 (`splits/grouped.py`, `data/processed/folds.parquet`). On ne peut pas grouper à la fois par gabarit et par monde : 1 060 des 1 136 mondes de dev apparaissent dans plusieurs plis. Le risque est traité par l'**anonymisation** (L9), contrôlée par une **sonde textuelle du monde** (1-plus-proche-voisin TF-IDF, ajustée sur train, évaluée sur val, comparée au hasard à domaine × catégorie égaux : 12,2 % → 3,1 % contre 2,1 %). La baseline « recherche du monde » par `world_id` n'est **pas** un critère : elle ne dépend pas du texte. Contrôle complémentaire : plis `GroupKFold` par monde (`world_fold`).
 3. **Validation imbriquée** pour l'optimisation d'hyperparamètres et la calibration : boucle interne groupée dans chaque pli externe.
 4. **Domaine exclu (leave-one-domain-out)** : 5 entraînements, chacun testé sur le domaine non vu (H1, H5).
 5. **Test externe** : ATBench (et AgentDojo en bonus), sans réentraînement, avec seuil transféré.
@@ -303,7 +304,7 @@ L'**accuracy** n'est pas utilisée comme critère de sélection.
 | L6 | Quasi-doublons entre plis | déduplication ou regroupement avant le split | stat : similarité max train–test |
 | L7 | Normalisation au niveau trajectoire (stats sur toute la trajectoire) | stats cumulées jusqu'à t seulement | inclus dans L3 |
 | L8 | Sur-réglage sur ATBench | ATBench jamais utilisé pour choisir quoi que ce soit | revue de code |
-| L9 | Identité du monde (noms, sociétés, adresses) | anonymisation avant tout modèle | baseline « recherche du monde » au hasard après anonymisation |
+| L9 | Identité du monde (noms, sociétés, adresses) | anonymisation avant tout modèle (`read_*(anonymized=True)`) | test : aucun nom, adresse ni société du monde après anonymisation ; sonde textuelle du monde proche du hasard à domaine × catégorie égaux |
 | L10 | Préfixes d'injection propres à chaque catégorie | masquage (H3) | rapport : performance avec et sans masquage |
 | L11 | `obs_t` et `thought` (effet déjà exécuté, raisonnement qui avoue) | vues strictes ; variante sans `thought` = référence | test : modifier `obs_t` ne change pas les variables de t |
 | L12 | Métadonnées du générateur (`category`, `source_category`, `compliance`, `attack_type`, `world_id`, `expected_tools`) | jamais en entrée ; seulement groupes, strates, oracle | test : aucune de ces colonnes dans la matrice de variables |

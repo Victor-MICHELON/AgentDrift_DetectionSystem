@@ -1,0 +1,4 @@
+,n_eval,world_accuracy,chance_given_domain,chance_given_category,neighbour_same_category
+raw,1723.0,0.122,0.0074,0.0207,0.768
+anonymised,1723.0,0.031,0.0074,0.0207,0.791
+masked,1723.0,0.033,0.0074,0.0207,0.775
