@@ -24,6 +24,7 @@ data/external/*
 
 # Heavy artefacts (metrics JSON and configs in results/runs stay versioned)
 results/runs/**/*.pkl
+results/runs/**/*.parquet
 results/runs/**/*.joblib
 results/runs/**/*.pt
 results/runs/**/*.bin

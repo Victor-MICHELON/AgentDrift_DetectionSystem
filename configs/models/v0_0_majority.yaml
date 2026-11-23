@@ -1,0 +1,18 @@
+# v0.0 — majority class (harness end-to-end check, KAN-61). Template for every version: see
+# src/agentdrift/models/experiment.py for each key. A new model = a new YAML file + an estimator factory.
+version: v0_0_majority
+kind: trivial
+description: Constant score equal to the training prevalence; expected ROC-AUC 0.5, PR-AUC = prevalence, no alert.
+views: [scanner, gate]
+text: anon               # anonymised text (default, the only model input); masked / raw for H3 only
+include_thought: false
+columns: null            # all feature columns of the view
+uses_position: false
+evaluation: cv           # 5 outer folds grouped by template
+model:
+  factory: agentdrift.models.baselines:majority
+  params: {}
+threshold_source: inner_oof
+target_fpr: [0.01, 0.002]
+bootstrap: {n_resamples: 2000, seed: 42}
+seed: 42
