@@ -14,6 +14,7 @@ Only the flaws of **major** severity are kept (they biased or would have biased 
 | A2 | 2026-11-20 | Claude Code (own check). To confirm: Victor MICHELON | wrong baseline / statistical reference | major | `data/audit.py::world_probe` | suspicious ratio to chance | `c2cb185` |
 | A3 | 2026-11-20 | Claude Code (own check). To confirm: Victor MICHELON | other (regex corrupts data, leaves identity) | major | `data/anonymize.py` | JSON-validity and residual checks | `c2cb185` |
 | A4 | 2026-11-20 | Claude Code (own check). To confirm: Victor MICHELON | hallucinated number (origin to confirm) | major if AI-made | CONTEXT 5 and 6.2 | recomputation in EDA | CONTEXT v1.2 (21/11) |
+| A5 | 2026-11-23 | Claude Code (own check: toy test). To confirm: Jean-Baptiste PASTEAU | violated statistical assumption (pooled CV scores) | major | `models/experiment.py` (KAN-61) | constant-model test failed | KAN-61 PR (`dev-JB-KAN-61`) |
 
 **Categories:** preprocessing leakage · split / group leakage · temporal leakage (future steps) · shortcut / artifact feature · wrong metric under imbalance · threshold or calibration chosen on test · violated statistical assumption · invented API or wrong library behaviour · hallucinated reference or number · other.
 **Severity:** critical (invalidates results) · major (biases results) · minor (no effect on reported numbers).
@@ -232,6 +233,68 @@ Recomputed values recorded in JOURNAL (2026-11-20). `docs/CONTEXT.md` 5 and 6.2 
 ### Prevention
 
 Numbers enter CONTEXT.md only with the command that reproduces them.
+
+---
+
+## A5 — Pooled out-of-fold ROC-AUC as the headline metric of grouped CV
+
+| Field | Value |
+|---|---|
+| **Caught by** | Claude Code (own check: a test on a constant model), to confirm: Jean-Baptiste PASTEAU |
+| **Date** | 2026-11-23 |
+| **Category / severity** | violated statistical assumption / major (biases every CV result and its CI) |
+| **Linked prompt** | none yet (the Lot B prompt is not logged in PROMPT_LOG.md yet) |
+| **Files** | `src/agentdrift/models/experiment.py` |
+| **Version before → after** | never committed → KAN-61 PR (branch `dev-JB-KAN-61`) |
+
+### What the AI produced
+
+```python
+def pooled_metrics(oof, targets, n_resamples, seed):
+    """Point estimate and 95 % cluster-bootstrap CI (templates) of the pooled out-of-fold predictions."""
+    y, g = oof["label"].to_numpy(), oof["template_id"].to_numpy()
+    ranking = cluster_bootstrap(oof["score"], y, g, n_resamples=n_resamples, seed=seed)
+    point = point_estimate(oof["score"], y)
+```
+
+### Why it is wrong
+
+The out-of-fold scores come from five different models, one per outer fold. Ranking them together (ROC-AUC, PR-AUC) compares scores whose scales differ across folds, so the pooled metric also measures how fold offsets line up with fold prevalences, not only how well each model ranks its own rows. A constant model (training prevalence) makes it visible. Its true ROC-AUC is 0.5 in every fold. Pooled, it is below 0.5, because a fold with a higher evaluated prevalence has a lower training prevalence, hence a lower constant score.
+
+### Root cause
+
+The usual "concatenate the OOF predictions, then score" recipe was applied without checking that the scores of the fold models are on a common scale. That holds neither for uncalibrated models nor across leave-one-domain-out splits with very different prevalences.
+
+### How we caught it
+
+The harness test `test_output_contract_and_majority_values` expected ROC-AUC 0.5 for the majority baseline and got 0.406 on the toy data.
+
+### Fix
+
+The headline is the mean over splits of the per-split metric. Its 95 % CI comes from a template bootstrap stratified by split: each resample redraws the templates of every split, computes the metric per split, then averages. Draws depend only on the seed and the templates, so two models get the same resamples (paired comparisons). The pooled value is kept under `pooled_oof` as a labelled diagnostic.
+
+```python
+for _, d in oof.groupby("split", sort=False):
+    c = bucket_counts(d["score"], d["label"], d["template_id"])
+    w = rng.multinomial(ng, np.full(ng, 1 / ng), size=n_resamples)
+    draws.append(pd.DataFrame(metrics_from_counts(w @ c.pos, w @ c.neg, c.scores, thr)))
+resamples = sum(draws) / len(draws)
+```
+
+### Evidence that the fix works
+
+| Metric / test | Before (pooled) | After (mean over splits) |
+|---|---|---|
+| Majority, toy data, ROC-AUC | 0.406 | 0.500 |
+| Majority, scanner, 5-fold CV by template | 0.497 | 0.500 |
+| Majority, gate, 5-fold CV by template | 0.493 | 0.500 |
+| Majority, gate, leave-one-domain-out | 0.453 | 0.500 |
+
+Guards: `tests/test_experiment.py::test_headline_does_not_pool_scores_of_different_models` and `test_resamples_are_shared_between_models_for_paired_comparisons`. Numbers from `results/runs/v0_0_majority/*/metrics.json` (`pooled_oof` vs `estimate`).
+
+### Prevention
+
+Every metric of the harness is first checked on a model whose true value is known (constant score: ROC-AUC 0.5, PR-AUC = prevalence, no alert).
 
 ---
 
