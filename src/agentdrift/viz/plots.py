@@ -383,3 +383,68 @@ def plot_external(traj: pd.DataFrame, atb: pd.DataFrame) -> plt.Figure:
     fig.suptitle("External test set: ATBench vs AgentDrift", x=0.01, ha="left", fontsize=11, fontweight="bold")
     fig.tight_layout()
     return fig
+
+
+# --------------------------------------------------------------------------- part B: effect of the preprocessing
+
+VERSION_COLORS = {"raw": INK_3, "anonymised": SERIES[0], "masked": SERIES[2]}
+
+
+def plot_before_after_bars(table: pd.DataFrame, title: str, xlabel: str) -> plt.Figure:
+    """Paired horizontal bars, one colour per text version (columns of `table` among raw / anonymised / masked)."""
+    versions = [v for v in VERSION_COLORS if v in table.columns]
+    fig, ax = plt.subplots(figsize=(7.5, 0.55 * len(table) + 1.3))
+    h = 0.8 / len(versions)
+    y = np.arange(len(table))
+    for k, v in enumerate(versions):
+        vals = table[v].astype(float).to_numpy()
+        ax.barh(y + (k - (len(versions) - 1) / 2) * h, vals, height=h * 0.9, color=VERSION_COLORS[v])
+        for yi, val in zip(y + (k - (len(versions) - 1) / 2) * h, vals):
+            ax.text(val + 0.008, yi, "0" if val == 0 else ("<1%" if val < 0.005 else f"{val:.0%}"),
+                    va="center", fontsize=8, color=INK_2)
+    ax.set_yticks(y, table.index)
+    ax.invert_yaxis()
+    ax.grid(axis="y", visible=False)
+    ax.set_xlim(0, max(0.1, float(table[versions].to_numpy(dtype=float).max()) * 1.18))
+    ax.xaxis.set_major_formatter(mpl.ticker.PercentFormatter(1, decimals=0))
+    ax.set_xlabel(xlabel)
+    _legend_top(ax, _patches(VERSION_COLORS, versions))
+    ax.set_title(title, pad=24)
+    return fig
+
+
+def plot_world_probe(probe: pd.DataFrame) -> plt.Figure:
+    """Text-only world probe accuracy per text version, against its two chance levels."""
+    fig, ax = plt.subplots(figsize=(7.5, 0.6 * len(probe) + 1.4))
+    y = np.arange(len(probe))
+    acc = probe["world_accuracy"].astype(float)
+    ax.barh(y, acc, color=[VERSION_COLORS.get(i, SERIES[0]) for i in probe.index], height=0.55)
+    for yi, v in zip(y, acc):
+        ax.text(v + 0.002, yi, f"{v:.1%}", va="center", fontsize=8.5, color=INK_2)
+    for col, label, style in [("chance_given_category", "chance, same domain × category", (0, (3, 3))),
+                              ("chance_given_domain", "chance, same domain", (0, (1, 2)))]:
+        c = float(probe[col].iloc[0])
+        ax.axvline(c, color=INK_3, linewidth=1.2, linestyle=style, label=f"{label} ({c:.1%})")
+    ax.legend(loc="lower right", handlelength=2.2)
+    ax.set_yticks(y, probe.index)
+    ax.invert_yaxis()
+    ax.grid(axis="y", visible=False)
+    ax.set_xlim(0, max(0.05, float(acc.max()) * 1.25))
+    ax.xaxis.set_major_formatter(mpl.ticker.PercentFormatter(1, decimals=0))
+    ax.set_xlabel("val trajectories whose nearest train neighbour (TF-IDF) has the same world")
+    ax.set_title("Can the text alone identify the simulated world?")
+    return fig
+
+
+def plot_provenance_before_after(table: pd.DataFrame) -> plt.Figure:
+    """Two heatmaps side by side: provenance rates on the raw and on the anonymised text."""
+    raw = table.xs("raw", axis=1, level=1)
+    anon = table.xs("anonymised", axis=1, level=1)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 0.42 * len(raw) + 1.6), sharey=True)
+    for ax, t, name in [(axes[0], raw, "raw text"), (axes[1], anon, "anonymised text")]:
+        heatmap(ax, t, vmax=max(float(raw.to_numpy().max()), float(anon.to_numpy().max())))
+        ax.set_title(name, fontsize=10)
+    fig.suptitle("Argument provenance before and after anonymisation (share of steps)", x=0.01, ha="left",
+                 fontweight="bold", fontsize=11)
+    fig.tight_layout()
+    return fig

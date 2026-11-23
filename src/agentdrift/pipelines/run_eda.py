@@ -1,13 +1,17 @@
-"""Headless EDA (part A): recompute every table and figure of notebooks/01_eda.ipynb.
+"""Headless EDA: recompute every table and figure of the EDA notebooks.
 
-    python -m agentdrift.pipelines.run_eda
+    python -m agentdrift.pipelines.run_eda             # parts A and B
+    python -m agentdrift.pipelines.run_eda --part A    # raw data (notebooks/01_eda.ipynb)
+    python -m agentdrift.pipelines.run_eda --part B    # effect of the preprocessing (notebooks/02_eda_preprocessing.ipynb)
 
-Writes results/runs/eda/metrics.json (+ the tables as CSV) and the figures to results/figures/
-(PNG) and report/latex/figures/ (PDF). Requires `python -m agentdrift.data.load` first.
+Writes results/runs/eda/ (part A) and results/runs/eda_b/ (part B): metrics.json + the tables as CSV; figures to
+results/figures/ (PNG) and report/latex/figures/ (PDF). Requires `python -m agentdrift.data.load` (and
+`python -m agentdrift.data.anonymize` for part B) first.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -19,11 +23,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from agentdrift.config import ROOT, RUNS  # noqa: E402
+from agentdrift.data import annotations as N  # noqa: E402
 from agentdrift.data import audit as A  # noqa: E402
 from agentdrift.utils.seed import set_seed  # noqa: E402
 from agentdrift.viz import plots as P  # noqa: E402
 
 OUT = RUNS / "eda"
+OUT_B = RUNS / "eda_b"
 
 
 def compute(d: dict) -> dict:
@@ -106,6 +112,44 @@ def figures(r: dict, d: dict) -> dict:
     }
 
 
+def compute_b(d: dict, da: dict) -> dict:
+    """All tables of part B: what the anonymisation (and, once it exists, the H3 masking) changes."""
+    tool_risk = N.read_tool_risk()
+    sheet = N.read_injection_visible() if N.INJECTION_VISIBLE_PATH.exists() else None
+    full_sheet = N.read_injection_visible(annotated_only=False) if sheet is not None else None
+    return {
+        "masking_available": A.masking_function() is not None,
+        "text_before_after": A.text_before_after(d, da),
+        "residual": A.residual_before_after(d, da),
+        "world_probe": A.world_probe_before_after(d, da),
+        "provenance": A.provenance_before_after(d, da),
+        "tool_risk_status": {"status": tool_risk.attrs["status"], "reviewer": tool_risk.attrs["reviewer"],
+                             "n_ambiguous": int(tool_risk["ambiguous"].sum())},
+        "tool_risk_counts": tool_risk["risk"].value_counts().reindex(list(N.RISK_CATEGORIES)),
+        "tool_risk_by_group": A.tool_risk_by_group(d["steps"], tool_risk),
+        "annotation_progress": None if full_sheet is None else N.annotation_progress(full_sheet, d["steps"]),
+        "visible_vs_heuristic": A.visible_vs_heuristic(sheet, d["steps"]),
+    }
+
+
+def figures_b(rb: dict) -> dict:
+    figs = {
+        "eda_b1_residual_identifiers": P.plot_before_after_bars(
+            rb["residual"][["raw", "anonymised"]], "World identifiers left in the text",
+            "share of trajectories containing the identifier"),
+        "eda_b2_world_probe": P.plot_world_probe(rb["world_probe"]),
+        "eda_b3_provenance": P.plot_provenance_before_after(rb["provenance"]),
+    }
+    if rb["tool_risk_by_group"] is not None:
+        figs["eda_b4_tool_risk"] = P.plot_table_heatmap(
+            rb["tool_risk_by_group"].drop(columns="n"), "Tool risk category of the proposed action, by step group")
+    if rb["visible_vs_heuristic"] is not None:
+        figs["eda_b5_injection_visible"] = P.plot_table_heatmap(
+            rb["visible_vs_heuristic"][["visible (human)", "visible (regex union)", "agreement"]],
+            "Is the injection visible? Human annotation vs regex union")
+    return figs
+
+
 def _git_hash() -> str:
     out = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"], capture_output=True, text=True)
     dirty = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain"], capture_output=True, text=True).stdout
@@ -118,10 +162,7 @@ def _jsonable(v):
     return v
 
 
-def main() -> int:
-    seed = set_seed()
-    P.setup()
-    d = A.load_inputs()
+def run_a(d: dict, seed: int) -> None:
     r = compute(d)
     OUT.mkdir(parents=True, exist_ok=True)
     keep = ["overview", "duplicates", "addresses_with_space", "tools_summary", "silhouettes"]
@@ -140,8 +181,49 @@ def main() -> int:
     for name, fig in figures(r, d).items():
         P.save(fig, name)
         plt.close(fig)
-    print(f"EDA written to {OUT.relative_to(ROOT)} and {P.FIGURES.relative_to(ROOT)}")
+    print(f"EDA part A written to {OUT.relative_to(ROOT)} and {P.FIGURES.relative_to(ROOT)}")
     print(r["reproduction"].to_string(index=False))
+
+
+def run_b(d: dict, seed: int) -> None:
+    rb = compute_b(d, A.load_inputs_anon())
+    OUT_B.mkdir(parents=True, exist_ok=True)
+    tables = ["residual", "world_probe", "provenance", "tool_risk_by_group", "annotation_progress",
+              "visible_vs_heuristic"]
+    metrics = {
+        "run": {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": seed, "git": _git_hash()},
+        "masking_available": rb["masking_available"],
+        "tool_risk_status": rb["tool_risk_status"],
+        **{k: _jsonable(rb[k]) for k in tables + ["tool_risk_counts"]},
+    }
+    (OUT_B / "metrics.json").write_text(json.dumps(metrics, indent=2, default=str))
+    for k in tables:
+        if rb[k] is not None:
+            rb[k].to_csv(OUT_B / f"{k}.csv")
+    rb["text_before_after"].to_csv(OUT_B / "text_before_after.csv")
+    for name, fig in figures_b(rb).items():
+        P.save(fig, name)
+        plt.close(fig)
+    print(f"EDA part B written to {OUT_B.relative_to(ROOT)}")
+    print(rb["world_probe"].to_string())
+    pending = [k for k in ("tool_risk_by_group", "visible_vs_heuristic") if rb[k] is None]
+    if not rb["masking_available"]:
+        pending.append("masked text (features/masking.py, KAN-19)")
+    if pending:
+        print("Pending:", ", ".join(pending))
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Recompute the EDA tables and figures.")
+    parser.add_argument("--part", choices=["A", "B", "all"], default="all")
+    args = parser.parse_args(argv)
+    seed = set_seed()
+    P.setup()
+    d = A.load_inputs()
+    if args.part in ("A", "all"):
+        run_a(d, seed)
+    if args.part in ("B", "all"):
+        run_b(d, seed)
     return 0
 
 

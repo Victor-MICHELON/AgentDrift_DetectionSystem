@@ -10,10 +10,10 @@ Only the flaws of **major** severity are kept (they biased or would have biased 
 
 | # | Date | Caught by | Category | Severity | File / step | Found via | Fixed in |
 |---|---|---|---|---|---|---|---|
-| A1 | 2026-11-20 | Claude Code (own check). To confirm: Victor MICHELON | wrong metric (leak control) | major | `docs/PLAN_DONNEES.md` steps 5 and 7, CONTEXT 8.1 | plan review, then run on both versions | `c2cb185` (code), docs uncommitted |
+| A1 | 2026-11-20 | Claude Code (own check). To confirm: Victor MICHELON | wrong metric (leak control) | major | `docs/PLAN_DONNEES.md` steps 5 and 7, CONTEXT 8.1 | plan review, then run on both versions | `c2cb185` (code), CONTEXT v1.2 (21/11) |
 | A2 | 2026-11-20 | Claude Code (own check). To confirm: Victor MICHELON | wrong baseline / statistical reference | major | `data/audit.py::world_probe` | suspicious ratio to chance | `c2cb185` |
 | A3 | 2026-11-20 | Claude Code (own check). To confirm: Victor MICHELON | other (regex corrupts data, leaves identity) | major | `data/anonymize.py` | JSON-validity and residual checks | `c2cb185` |
-| A4 | 2026-11-20 | Claude Code (own check). To confirm: Victor MICHELON | hallucinated number (origin to confirm) | major if AI-made | CONTEXT 5 and 6.2 | recomputation in EDA | documented, CONTEXT not yet updated |
+| A4 | 2026-11-20 | Claude Code (own check). To confirm: Victor MICHELON | hallucinated number (origin to confirm) | major if AI-made | CONTEXT 5 and 6.2 | recomputation in EDA | CONTEXT v1.2 (21/11) |
 
 **Categories:** preprocessing leakage · split / group leakage · temporal leakage (future steps) · shortcut / artifact feature · wrong metric under imbalance · threshold or calibration chosen on test · violated statistical assumption · invented API or wrong library behaviour · hallucinated reference or number · other.
 **Severity:** critical (invalidates results) · major (biases results) · minor (no effect on reported numbers).

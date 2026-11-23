@@ -330,10 +330,8 @@ def injection_prefixes(steps: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(cols)
 
 
-def injection_visibility(steps: pd.DataFrame) -> pd.DataFrame:
-    """How readable is the injection in the poisoned observation? Three regex definitions:
-    category prefix, explicit instruction vocabulary (prefixes excluded), external address or URL
-    (address whose domain differs from the user's own domain)."""
+def visibility_indicators(steps: pd.DataFrame) -> pd.DataFrame:
+    """Per injection step (raw text): the three regex visibility indicators and their union."""
     inj = steps[steps["label"].isin(["injection_point", "failed_injection"])].copy()
     prefix_any = re.compile("|".join(r.pattern for r in INJECTION_PREFIXES.values()))
     inj["category prefix"] = inj["obs"].str.contains(prefix_any)
@@ -342,6 +340,14 @@ def injection_visibility(steps: pd.DataFrame) -> pd.DataFrame:
         _has_external(o, ud) for o, ud in zip(inj["obs"], _user_domains(inj))
     ]
     inj["any of the three"] = inj[["category prefix", "instruction vocabulary", "external address or URL"]].any(axis=1)
+    return inj
+
+
+def injection_visibility(steps: pd.DataFrame) -> pd.DataFrame:
+    """How readable is the injection in the poisoned observation? Three regex definitions:
+    category prefix, explicit instruction vocabulary (prefixes excluded), external address or URL
+    (address whose domain differs from the user's own domain)."""
+    inj = visibility_indicators(steps)
     order = ["attacked_full", "attacked_partial", "attacked_delayed", "failed_attack"]
     t = inj.groupby("source_category")[
         ["category prefix", "instruction vocabulary", "external address or URL", "any of the three"]
@@ -775,3 +781,106 @@ def world_probe(traj: pd.DataFrame, steps: pd.DataFrame, train: str = "train", e
         "chance_given_category": round(float((1 / key[ev_ids].map(n_worlds)).mean()), 4),
         "neighbour_same_category": round(float(same_cat.mean()), 3),
     }
+
+
+# --------------------------------------------------------------------------- part B: effect of the preprocessing
+
+
+def load_inputs_anon() -> dict[str, pd.DataFrame]:
+    """Anonymised trajectory and step tables, fixed test set included for DESCRIPTIVE statistics only."""
+    traj = read_trajectories(include_test=True, anonymized=True)
+    steps = read_steps(include_test=True, anonymized=True)
+    for df in (traj, steps):
+        df["origin_split"] = pd.Categorical(df["origin_split"], ["train", "val", "test"], ordered=True)
+    return {"trajectories": traj, "steps": steps}
+
+
+def masking_function():
+    """`features.masking.mask_artifacts` (Lot B, KAN-19) if it exists yet, else None."""
+    try:
+        from agentdrift.features.masking import mask_artifacts
+    except ImportError:
+        return None
+    return mask_artifacts
+
+
+def text_before_after(d_raw: dict, d_anon: dict, seed: int = SEED) -> pd.DataFrame:
+    """Side-by-side text of one injection step per attack category (train only, seeded), raw / anonymised
+    (/ masked once `features/masking.py` exists). Picked among steps whose text the anonymisation changed."""
+    raw, anon = d_raw["steps"], d_anon["steps"]
+    key = ["traj_id", "t"]
+    both = raw.merge(anon[key + ["thought", "args_json", "obs"]], on=key, suffixes=("", "_anon"))
+    both = both[(both["origin_split"] == "train") & both["label"].isin(["injection_point", "failed_injection"])]
+    changed = (both["obs"] != both["obs_anon"]) | (both["args_json"] != both["args_json_anon"])
+    mask = masking_function()
+    rows = []
+    for sc in ["attacked_full", "attacked_partial", "attacked_delayed", "failed_attack"]:
+        pool = both[changed & (both["source_category"] == sc)].sort_values(key)
+        if pool.empty:
+            continue
+        s = pool.iloc[int(np.random.default_rng(seed).integers(len(pool)))]
+        for field in ["thought", "args_json", "obs"]:
+            row = {"example": sc, "field": field, "raw": s[field], "anonymised": s[f"{field}_anon"]}
+            if mask is not None:
+                row["masked"] = mask(s[f"{field}_anon"])
+            rows.append(row)
+    return pd.DataFrame(rows).set_index(["example", "field"])
+
+
+def residual_before_after(d_raw: dict, d_anon: dict) -> pd.DataFrame:
+    """Share of trajectories whose text contains each kind of world identifier, raw vs anonymised."""
+    from agentdrift.data.anonymize import residual_identifiers
+
+    traj, steps = d_raw["trajectories"], d_raw["steps"]
+    raw = residual_identifiers(traj, traj.drop(columns="world_json"), steps)
+    anon = residual_identifiers(traj, d_anon["trajectories"], d_anon["steps"])
+    out = pd.DataFrame({"raw": raw, "anonymised": anon}) / len(traj)
+    out["n residual (anonymised)"] = anon
+    return out
+
+
+def world_probe_before_after(d_raw: dict, d_anon: dict) -> pd.DataFrame:
+    """Text-only world probe (train -> val) on the raw and the anonymised text, with its chance levels."""
+    return pd.DataFrame({
+        "raw": world_probe(d_raw["trajectories"], d_raw["steps"]),
+        "anonymised": world_probe(d_anon["trajectories"], d_anon["steps"]),
+    }).T
+
+
+def tool_risk_by_group(steps: pd.DataFrame, table: pd.DataFrame, allow_draft: bool = False) -> pd.DataFrame | None:
+    """Share of each tool risk category per step group (B, I, F, H by attack type).
+
+    Returns None while tool_risk.yaml is a draft: showing risk x labels during the review would let the reviewer
+    tune the categories on the labels (the yaml forbids it). allow_draft=True only for tests."""
+    if table.attrs.get("status") != "validated" and not allow_draft:
+        return None
+    risk = steps["tool"].map(table.set_index("tool")["risk"])
+    groups = step_groups(steps)
+    t = pd.crosstab(groups, risk, normalize="index")
+    t["n"] = groups.value_counts()
+    order = ["B", "I", "F", "H full", "H partial", "H delayed"]
+    return t.reindex([g for g in order if g in t.index])
+
+
+def visible_vs_heuristic(sheet: pd.DataFrame, steps_raw: pd.DataFrame) -> pd.DataFrame | None:
+    """Human `injection_visible` against the regex union of part A ("any of the three"), per attack category.
+
+    `sheet` = annotated rows (traj_id, t, injection_visible). None until at least one row is annotated."""
+    from sklearn.metrics import cohen_kappa_score
+
+    if sheet is None or sheet.empty:
+        return None
+    ind = visibility_indicators(steps_raw)[["traj_id", "t", "source_category", "any of the three"]]
+    m = sheet.merge(ind, on=["traj_id", "t"], how="left")
+    m["human"] = m["injection_visible"] == "oui"
+    rows = {}
+    for sc, g in list(m.groupby("source_category")) + [("all", m)]:
+        rows[sc] = {
+            "annotated": len(g),
+            "visible (human)": g["human"].mean(),
+            "visible (regex union)": g["any of the three"].mean(),
+            "agreement": (g["human"] == g["any of the three"]).mean(),
+            "kappa": cohen_kappa_score(g["human"], g["any of the three"]) if g["human"].nunique() > 1 else np.nan,
+        }
+    order = ["attacked_full", "attacked_partial", "attacked_delayed", "all"]
+    return pd.DataFrame(rows).T.reindex([o for o in order if o in rows])
