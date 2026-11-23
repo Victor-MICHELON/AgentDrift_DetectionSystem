@@ -48,7 +48,7 @@ Notebooks: open `notebooks/*.ipynb` in VS Code and select the `.venv` interprete
 | World anonymisation (mandatory before any model) | `python -m agentdrift.data.anonymize` |
 | Cross-validation folds (fixed) | `python -m agentdrift.splits.grouped` |
 | EDA part A (tables, metrics, figures) | `python -m agentdrift.pipelines.run_eda` · notebook `notebooks/01_eda.ipynb` |
-| Scanner / gate views (B.1) | `python -m agentdrift.pipelines.build_views [--include-test]` → `data/processed/views/`, summary in `results/runs/views/` |
+| Scanner / gate views (B.1, KAN-60): anonymised (default) + masked text, both `thought` variants | `python -m agentdrift.pipelines.build_views [--raw] [--atbench] [--include-test]` (≈ 4 min with `--raw --atbench`) → `data/processed/views/`, checks in `results/runs/views/summary.json`. `--raw`: raw-text views for the H3 ablation only; `--atbench`: ATBench views (raw text, team decision pending). Read with `features.views.read_view(view, include_thought=False, text="anon")` |
 | v0.1 baseline | `python -m agentdrift.pipelines.run_baseline` |
 
 More commands are added with each new pipeline.

@@ -1,8 +1,9 @@
 {
   "run": {
-    "date": "2026-11-21T15:20:15+00:00",
+    "date": "2026-11-23T16:33:49+00:00",
     "seed": 42,
-    "git": "f44c571"
+    "git": "af6a149-dirty",
+    "seconds": 229.8
   },
   "config": {
     "max_history_steps": null,
@@ -10,16 +11,24 @@
     "max_field_chars": 2000,
     "max_content_chars": null
   },
+  "text_variants": [
+    "anon",
+    "masked",
+    "raw"
+  ],
+  "default_text": "anon",
   "views": {
     "scanner": {
-      "seconds": 24.8,
+      "text": "anon",
+      "include_thought": false,
+      "seconds": 9.9,
       "rows": 58488,
       "history": {
-        "chars_mean": 407.2,
-        "chars_p50": 350.0,
-        "chars_p90": 840.0,
-        "chars_p99": 1174.0,
-        "chars_max": 2005,
+        "chars_mean": 388.5,
+        "chars_p50": 339.0,
+        "chars_p90": 795.0,
+        "chars_p99": 1124.0,
+        "chars_max": 1730,
         "steps_mean": 3.1,
         "steps_max": 10,
         "n_truncated": 0
@@ -42,38 +51,6 @@
           "rows": 8074,
           "positives": 993,
           "prevalence": 0.1229873669
-        },
-        "all": {
-          "rows": 58488,
-          "positives": 7036,
-          "prevalence": 0.1202981808
-        }
-      },
-      "prevalence_domain": {
-        "banking": {
-          "rows": 9498,
-          "positives": 1036,
-          "prevalence": 0.1090755949
-        },
-        "coding": {
-          "rows": 12217,
-          "positives": 1500,
-          "prevalence": 0.1227797332
-        },
-        "email": {
-          "rows": 12386,
-          "positives": 1500,
-          "prevalence": 0.1211044728
-        },
-        "medical": {
-          "rows": 12195,
-          "positives": 1500,
-          "prevalence": 0.12300123
-        },
-        "web": {
-          "rows": 12192,
-          "positives": 1500,
-          "prevalence": 0.1230314961
         },
         "all": {
           "rows": 58488,
@@ -126,10 +103,432 @@
           "gap_rows": 0,
           "gap_positives": 0
         }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 0,
+        "world e-mail": 0,
+        "company name": 0,
+        "domain label": 3,
+        "trajectories_checked": 12536
+      },
+      "prevalence_domain": {
+        "banking": {
+          "rows": 9498,
+          "positives": 1036,
+          "prevalence": 0.1090755949
+        },
+        "coding": {
+          "rows": 12217,
+          "positives": 1500,
+          "prevalence": 0.1227797332
+        },
+        "email": {
+          "rows": 12386,
+          "positives": 1500,
+          "prevalence": 0.1211044728
+        },
+        "medical": {
+          "rows": 12195,
+          "positives": 1500,
+          "prevalence": 0.12300123
+        },
+        "web": {
+          "rows": 12192,
+          "positives": 1500,
+          "prevalence": 0.1230314961
+        },
+        "all": {
+          "rows": 58488,
+          "positives": 7036,
+          "prevalence": 0.1202981808
+        }
+      }
+    },
+    "scanner_masked": {
+      "text": "masked",
+      "include_thought": false,
+      "seconds": 15.5,
+      "rows": 58488,
+      "history": {
+        "chars_mean": 388.8,
+        "chars_p50": 340.0,
+        "chars_p90": 795.0,
+        "chars_p99": 1123.0,
+        "chars_max": 1722,
+        "steps_mean": 3.1,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {
+        "scanner_first_step_skipped": 12536
+      },
+      "prevalence_split": {
+        "train": {
+          "rows": 42426,
+          "positives": 5097,
+          "prevalence": 0.1201385943
+        },
+        "val": {
+          "rows": 7988,
+          "positives": 946,
+          "prevalence": 0.1184276415
+        },
+        "test": {
+          "rows": 8074,
+          "positives": 993,
+          "prevalence": 0.1229873669
+        },
+        "all": {
+          "rows": 58488,
+          "positives": 7036,
+          "prevalence": 0.1202981808
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_scan": 5097,
+          "eda_y_scan_prevalence": 0.099,
+          "expected_rows": 42426,
+          "view_rows": 42426,
+          "view_positives": 5097,
+          "view_prevalence": 0.1201,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_scan": 946,
+          "eda_y_scan_prevalence": 0.0973,
+          "expected_rows": 7988,
+          "view_rows": 7988,
+          "view_positives": 946,
+          "view_prevalence": 0.1184,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_scan": 993,
+          "eda_y_scan_prevalence": 0.1014,
+          "expected_rows": 8074,
+          "view_rows": 8074,
+          "view_positives": 993,
+          "view_prevalence": 0.123,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_scan": 7036,
+          "eda_y_scan_prevalence": 0.0991,
+          "expected_rows": 58488,
+          "view_rows": 58488,
+          "view_positives": 7036,
+          "view_prevalence": 0.1203,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 0,
+        "world e-mail": 0,
+        "company name": 0,
+        "domain label": 3,
+        "trajectories_checked": 12536
+      }
+    },
+    "scanner_raw": {
+      "text": "raw",
+      "include_thought": false,
+      "seconds": 15.9,
+      "rows": 58488,
+      "history": {
+        "chars_mean": 407.2,
+        "chars_p50": 350.0,
+        "chars_p90": 840.0,
+        "chars_p99": 1174.0,
+        "chars_max": 2005,
+        "steps_mean": 3.1,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {
+        "scanner_first_step_skipped": 12536
+      },
+      "prevalence_split": {
+        "train": {
+          "rows": 42426,
+          "positives": 5097,
+          "prevalence": 0.1201385943
+        },
+        "val": {
+          "rows": 7988,
+          "positives": 946,
+          "prevalence": 0.1184276415
+        },
+        "test": {
+          "rows": 8074,
+          "positives": 993,
+          "prevalence": 0.1229873669
+        },
+        "all": {
+          "rows": 58488,
+          "positives": 7036,
+          "prevalence": 0.1202981808
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_scan": 5097,
+          "eda_y_scan_prevalence": 0.099,
+          "expected_rows": 42426,
+          "view_rows": 42426,
+          "view_positives": 5097,
+          "view_prevalence": 0.1201,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_scan": 946,
+          "eda_y_scan_prevalence": 0.0973,
+          "expected_rows": 7988,
+          "view_rows": 7988,
+          "view_positives": 946,
+          "view_prevalence": 0.1184,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_scan": 993,
+          "eda_y_scan_prevalence": 0.1014,
+          "expected_rows": 8074,
+          "view_rows": 8074,
+          "view_positives": 993,
+          "view_prevalence": 0.123,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_scan": 7036,
+          "eda_y_scan_prevalence": 0.0991,
+          "expected_rows": 58488,
+          "view_rows": 58488,
+          "view_positives": 7036,
+          "view_prevalence": 0.1203,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 3878,
+        "world e-mail": 1451,
+        "company name": 2879,
+        "domain label": 4912,
+        "trajectories_checked": 12536
       }
     },
     "scanner_thought": {
-      "seconds": 44.2,
+      "text": "anon",
+      "include_thought": true,
+      "seconds": 8.1,
+      "rows": 58488,
+      "history": {
+        "chars_mean": 651.3,
+        "chars_p50": 569.0,
+        "chars_p90": 1287.0,
+        "chars_p99": 1762.0,
+        "chars_max": 2573,
+        "steps_mean": 3.1,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {
+        "scanner_first_step_skipped": 12536
+      },
+      "prevalence_split": {
+        "train": {
+          "rows": 42426,
+          "positives": 5097,
+          "prevalence": 0.1201385943
+        },
+        "val": {
+          "rows": 7988,
+          "positives": 946,
+          "prevalence": 0.1184276415
+        },
+        "test": {
+          "rows": 8074,
+          "positives": 993,
+          "prevalence": 0.1229873669
+        },
+        "all": {
+          "rows": 58488,
+          "positives": 7036,
+          "prevalence": 0.1202981808
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_scan": 5097,
+          "eda_y_scan_prevalence": 0.099,
+          "expected_rows": 42426,
+          "view_rows": 42426,
+          "view_positives": 5097,
+          "view_prevalence": 0.1201,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_scan": 946,
+          "eda_y_scan_prevalence": 0.0973,
+          "expected_rows": 7988,
+          "view_rows": 7988,
+          "view_positives": 946,
+          "view_prevalence": 0.1184,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_scan": 993,
+          "eda_y_scan_prevalence": 0.1014,
+          "expected_rows": 8074,
+          "view_rows": 8074,
+          "view_positives": 993,
+          "view_prevalence": 0.123,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_scan": 7036,
+          "eda_y_scan_prevalence": 0.0991,
+          "expected_rows": 58488,
+          "view_rows": 58488,
+          "view_positives": 7036,
+          "view_prevalence": 0.1203,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 0,
+        "world e-mail": 0,
+        "company name": 0,
+        "domain label": 3,
+        "trajectories_checked": 12536
+      }
+    },
+    "scanner_thought_masked": {
+      "text": "masked",
+      "include_thought": true,
+      "seconds": 8.2,
+      "rows": 58488,
+      "history": {
+        "chars_mean": 652.2,
+        "chars_p50": 572.0,
+        "chars_p90": 1287.0,
+        "chars_p99": 1758.0,
+        "chars_max": 2565,
+        "steps_mean": 3.1,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {
+        "scanner_first_step_skipped": 12536
+      },
+      "prevalence_split": {
+        "train": {
+          "rows": 42426,
+          "positives": 5097,
+          "prevalence": 0.1201385943
+        },
+        "val": {
+          "rows": 7988,
+          "positives": 946,
+          "prevalence": 0.1184276415
+        },
+        "test": {
+          "rows": 8074,
+          "positives": 993,
+          "prevalence": 0.1229873669
+        },
+        "all": {
+          "rows": 58488,
+          "positives": 7036,
+          "prevalence": 0.1202981808
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_scan": 5097,
+          "eda_y_scan_prevalence": 0.099,
+          "expected_rows": 42426,
+          "view_rows": 42426,
+          "view_positives": 5097,
+          "view_prevalence": 0.1201,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_scan": 946,
+          "eda_y_scan_prevalence": 0.0973,
+          "expected_rows": 7988,
+          "view_rows": 7988,
+          "view_positives": 946,
+          "view_prevalence": 0.1184,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_scan": 993,
+          "eda_y_scan_prevalence": 0.1014,
+          "expected_rows": 8074,
+          "view_rows": 8074,
+          "view_positives": 993,
+          "view_prevalence": 0.123,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_scan": 7036,
+          "eda_y_scan_prevalence": 0.0991,
+          "expected_rows": 58488,
+          "view_rows": 58488,
+          "view_positives": 7036,
+          "view_prevalence": 0.1203,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 0,
+        "world e-mail": 0,
+        "company name": 0,
+        "domain label": 3,
+        "trajectories_checked": 12536
+      }
+    },
+    "scanner_thought_raw": {
+      "text": "raw",
+      "include_thought": true,
+      "seconds": 8.1,
       "rows": 58488,
       "history": {
         "chars_mean": 670.9,
@@ -165,17 +564,73 @@
           "positives": 7036,
           "prevalence": 0.1202981808
         }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_scan": 5097,
+          "eda_y_scan_prevalence": 0.099,
+          "expected_rows": 42426,
+          "view_rows": 42426,
+          "view_positives": 5097,
+          "view_prevalence": 0.1201,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_scan": 946,
+          "eda_y_scan_prevalence": 0.0973,
+          "expected_rows": 7988,
+          "view_rows": 7988,
+          "view_positives": 946,
+          "view_prevalence": 0.1184,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_scan": 993,
+          "eda_y_scan_prevalence": 0.1014,
+          "expected_rows": 8074,
+          "view_rows": 8074,
+          "view_positives": 993,
+          "view_prevalence": 0.123,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_scan": 7036,
+          "eda_y_scan_prevalence": 0.0991,
+          "expected_rows": 58488,
+          "view_rows": 58488,
+          "view_positives": 7036,
+          "view_prevalence": 0.1203,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 4460,
+        "world e-mail": 1452,
+        "company name": 3035,
+        "domain label": 4934,
+        "trajectories_checked": 12536
       }
     },
     "gate": {
-      "seconds": 47.6,
+      "text": "anon",
+      "include_thought": false,
+      "seconds": 8.2,
       "rows": 71024,
       "history": {
-        "chars_mean": 417.8,
-        "chars_p50": 387.0,
-        "chars_p90": 883.0,
-        "chars_p99": 1245.0,
-        "chars_max": 2078,
+        "chars_mean": 399.0,
+        "chars_p50": 372.0,
+        "chars_p90": 837.0,
+        "chars_p99": 1198.0,
+        "chars_max": 1849,
         "steps_mean": 2.55,
         "steps_max": 10,
         "n_truncated": 0
@@ -196,38 +651,6 @@
           "rows": 9796,
           "positives": 1755,
           "prevalence": 0.179154757
-        },
-        "all": {
-          "rows": 71024,
-          "positives": 12349,
-          "prevalence": 0.1738708042
-        }
-      },
-      "prevalence_domain": {
-        "banking": {
-          "rows": 11634,
-          "positives": 1170,
-          "prevalence": 0.1005673027
-        },
-        "coding": {
-          "rows": 14817,
-          "positives": 2808,
-          "prevalence": 0.189512047
-        },
-        "email": {
-          "rows": 14986,
-          "positives": 2862,
-          "prevalence": 0.1909782464
-        },
-        "medical": {
-          "rows": 14795,
-          "positives": 2758,
-          "prevalence": 0.1864143292
-        },
-        "web": {
-          "rows": 14792,
-          "positives": 2751,
-          "prevalence": 0.1859789075
         },
         "all": {
           "rows": 71024,
@@ -280,10 +703,424 @@
           "gap_rows": 0,
           "gap_positives": 0
         }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 0,
+        "world e-mail": 0,
+        "company name": 0,
+        "domain label": 3,
+        "trajectories_checked": 12536
+      },
+      "prevalence_domain": {
+        "banking": {
+          "rows": 11634,
+          "positives": 1170,
+          "prevalence": 0.1005673027
+        },
+        "coding": {
+          "rows": 14817,
+          "positives": 2808,
+          "prevalence": 0.189512047
+        },
+        "email": {
+          "rows": 14986,
+          "positives": 2862,
+          "prevalence": 0.1909782464
+        },
+        "medical": {
+          "rows": 14795,
+          "positives": 2758,
+          "prevalence": 0.1864143292
+        },
+        "web": {
+          "rows": 14792,
+          "positives": 2751,
+          "prevalence": 0.1859789075
+        },
+        "all": {
+          "rows": 71024,
+          "positives": 12349,
+          "prevalence": 0.1738708042
+        }
+      }
+    },
+    "gate_masked": {
+      "text": "masked",
+      "include_thought": false,
+      "seconds": 8.5,
+      "rows": 71024,
+      "history": {
+        "chars_mean": 399.3,
+        "chars_p50": 372.0,
+        "chars_p90": 838.0,
+        "chars_p99": 1200.0,
+        "chars_max": 1849,
+        "steps_mean": 2.55,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {},
+      "prevalence_split": {
+        "train": {
+          "rows": 51507,
+          "positives": 8947,
+          "prevalence": 0.173704545
+        },
+        "val": {
+          "rows": 9721,
+          "positives": 1647,
+          "prevalence": 0.1694270137
+        },
+        "test": {
+          "rows": 9796,
+          "positives": 1755,
+          "prevalence": 0.179154757
+        },
+        "all": {
+          "rows": 71024,
+          "positives": 12349,
+          "prevalence": 0.1738708042
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_gate": 8947,
+          "eda_y_gate_prevalence": 0.1737,
+          "expected_rows": 51507,
+          "view_rows": 51507,
+          "view_positives": 8947,
+          "view_prevalence": 0.1737,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_gate": 1647,
+          "eda_y_gate_prevalence": 0.1694,
+          "expected_rows": 9721,
+          "view_rows": 9721,
+          "view_positives": 1647,
+          "view_prevalence": 0.1694,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_gate": 1755,
+          "eda_y_gate_prevalence": 0.1792,
+          "expected_rows": 9796,
+          "view_rows": 9796,
+          "view_positives": 1755,
+          "view_prevalence": 0.1792,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_gate": 12349,
+          "eda_y_gate_prevalence": 0.1739,
+          "expected_rows": 71024,
+          "view_rows": 71024,
+          "view_positives": 12349,
+          "view_prevalence": 0.1739,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 0,
+        "world e-mail": 0,
+        "company name": 0,
+        "domain label": 3,
+        "trajectories_checked": 12536
+      }
+    },
+    "gate_raw": {
+      "text": "raw",
+      "include_thought": false,
+      "seconds": 8.2,
+      "rows": 71024,
+      "history": {
+        "chars_mean": 417.8,
+        "chars_p50": 387.0,
+        "chars_p90": 883.0,
+        "chars_p99": 1245.0,
+        "chars_max": 2078,
+        "steps_mean": 2.55,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {},
+      "prevalence_split": {
+        "train": {
+          "rows": 51507,
+          "positives": 8947,
+          "prevalence": 0.173704545
+        },
+        "val": {
+          "rows": 9721,
+          "positives": 1647,
+          "prevalence": 0.1694270137
+        },
+        "test": {
+          "rows": 9796,
+          "positives": 1755,
+          "prevalence": 0.179154757
+        },
+        "all": {
+          "rows": 71024,
+          "positives": 12349,
+          "prevalence": 0.1738708042
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_gate": 8947,
+          "eda_y_gate_prevalence": 0.1737,
+          "expected_rows": 51507,
+          "view_rows": 51507,
+          "view_positives": 8947,
+          "view_prevalence": 0.1737,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_gate": 1647,
+          "eda_y_gate_prevalence": 0.1694,
+          "expected_rows": 9721,
+          "view_rows": 9721,
+          "view_positives": 1647,
+          "view_prevalence": 0.1694,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_gate": 1755,
+          "eda_y_gate_prevalence": 0.1792,
+          "expected_rows": 9796,
+          "view_rows": 9796,
+          "view_positives": 1755,
+          "view_prevalence": 0.1792,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_gate": 12349,
+          "eda_y_gate_prevalence": 0.1739,
+          "expected_rows": 71024,
+          "view_rows": 71024,
+          "view_positives": 12349,
+          "view_prevalence": 0.1739,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 3943,
+        "world e-mail": 1798,
+        "company name": 3042,
+        "domain label": 5292,
+        "trajectories_checked": 12536
       }
     },
     "gate_thought": {
-      "seconds": 23.8,
+      "text": "anon",
+      "include_thought": true,
+      "seconds": 8.3,
+      "rows": 71024,
+      "history": {
+        "chars_mean": 615.4,
+        "chars_p50": 549.0,
+        "chars_p90": 1312.0,
+        "chars_p99": 1819.0,
+        "chars_max": 2692,
+        "steps_mean": 2.55,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {},
+      "prevalence_split": {
+        "train": {
+          "rows": 51507,
+          "positives": 8947,
+          "prevalence": 0.173704545
+        },
+        "val": {
+          "rows": 9721,
+          "positives": 1647,
+          "prevalence": 0.1694270137
+        },
+        "test": {
+          "rows": 9796,
+          "positives": 1755,
+          "prevalence": 0.179154757
+        },
+        "all": {
+          "rows": 71024,
+          "positives": 12349,
+          "prevalence": 0.1738708042
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_gate": 8947,
+          "eda_y_gate_prevalence": 0.1737,
+          "expected_rows": 51507,
+          "view_rows": 51507,
+          "view_positives": 8947,
+          "view_prevalence": 0.1737,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_gate": 1647,
+          "eda_y_gate_prevalence": 0.1694,
+          "expected_rows": 9721,
+          "view_rows": 9721,
+          "view_positives": 1647,
+          "view_prevalence": 0.1694,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_gate": 1755,
+          "eda_y_gate_prevalence": 0.1792,
+          "expected_rows": 9796,
+          "view_rows": 9796,
+          "view_positives": 1755,
+          "view_prevalence": 0.1792,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_gate": 12349,
+          "eda_y_gate_prevalence": 0.1739,
+          "expected_rows": 71024,
+          "view_rows": 71024,
+          "view_positives": 12349,
+          "view_prevalence": 0.1739,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 0,
+        "world e-mail": 0,
+        "company name": 0,
+        "domain label": 3,
+        "trajectories_checked": 12536
+      }
+    },
+    "gate_thought_masked": {
+      "text": "masked",
+      "include_thought": true,
+      "seconds": 8.4,
+      "rows": 71024,
+      "history": {
+        "chars_mean": 616.2,
+        "chars_p50": 550.0,
+        "chars_p90": 1313.0,
+        "chars_p99": 1823.0,
+        "chars_max": 2684,
+        "steps_mean": 2.55,
+        "steps_max": 10,
+        "n_truncated": 0
+      },
+      "edge_cases": {},
+      "prevalence_split": {
+        "train": {
+          "rows": 51507,
+          "positives": 8947,
+          "prevalence": 0.173704545
+        },
+        "val": {
+          "rows": 9721,
+          "positives": 1647,
+          "prevalence": 0.1694270137
+        },
+        "test": {
+          "rows": 9796,
+          "positives": 1755,
+          "prevalence": 0.179154757
+        },
+        "all": {
+          "rows": 71024,
+          "positives": 12349,
+          "prevalence": 0.1738708042
+        }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_gate": 8947,
+          "eda_y_gate_prevalence": 0.1737,
+          "expected_rows": 51507,
+          "view_rows": 51507,
+          "view_positives": 8947,
+          "view_prevalence": 0.1737,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_gate": 1647,
+          "eda_y_gate_prevalence": 0.1694,
+          "expected_rows": 9721,
+          "view_rows": 9721,
+          "view_positives": 1647,
+          "view_prevalence": 0.1694,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_gate": 1755,
+          "eda_y_gate_prevalence": 0.1792,
+          "expected_rows": 9796,
+          "view_rows": 9796,
+          "view_positives": 1755,
+          "view_prevalence": 0.1792,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_gate": 12349,
+          "eda_y_gate_prevalence": 0.1739,
+          "expected_rows": 71024,
+          "view_rows": 71024,
+          "view_positives": 12349,
+          "view_prevalence": 0.1739,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 0,
+        "world e-mail": 0,
+        "company name": 0,
+        "domain label": 3,
+        "trajectories_checked": 12536
+      }
+    },
+    "gate_thought_raw": {
+      "text": "raw",
+      "include_thought": true,
+      "seconds": 8.5,
       "rows": 71024,
       "history": {
         "chars_mean": 634.9,
@@ -317,7 +1154,148 @@
           "positives": 12349,
           "prevalence": 0.1738708042
         }
+      },
+      "eda_comparison": {
+        "train": {
+          "eda_steps": 51507,
+          "eda_y_gate": 8947,
+          "eda_y_gate_prevalence": 0.1737,
+          "expected_rows": 51507,
+          "view_rows": 51507,
+          "view_positives": 8947,
+          "view_prevalence": 0.1737,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "val": {
+          "eda_steps": 9721,
+          "eda_y_gate": 1647,
+          "eda_y_gate_prevalence": 0.1694,
+          "expected_rows": 9721,
+          "view_rows": 9721,
+          "view_positives": 1647,
+          "view_prevalence": 0.1694,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "test": {
+          "eda_steps": 9796,
+          "eda_y_gate": 1755,
+          "eda_y_gate_prevalence": 0.1792,
+          "expected_rows": 9796,
+          "view_rows": 9796,
+          "view_positives": 1755,
+          "view_prevalence": 0.1792,
+          "gap_rows": 0,
+          "gap_positives": 0
+        },
+        "all": {
+          "eda_steps": 71024,
+          "eda_y_gate": 12349,
+          "eda_y_gate_prevalence": 0.1739,
+          "expected_rows": 71024,
+          "view_rows": 71024,
+          "view_positives": 12349,
+          "view_prevalence": 0.1739,
+          "gap_rows": 0,
+          "gap_positives": 0
+        }
+      },
+      "same_rows_as_anon": true,
+      "residual": {
+        "full name": 4713,
+        "world e-mail": 1800,
+        "company name": 3213,
+        "domain label": 5320,
+        "trajectories_checked": 12536
       }
     }
-  }
+  },
+  "atbench": {
+    "status": "raw text: anonymisation of ATBench pending team decision 5 (docs/PLAN_DONNEES.md)",
+    "views": {
+      "scanner_raw": {
+        "rows": 1142,
+        "trajectories": 571,
+        "history": {
+          "chars_mean": 854.9,
+          "chars_p50": 359.0,
+          "chars_p90": 2306.0,
+          "chars_p99": 3531.0,
+          "chars_max": 3935,
+          "steps_mean": 1.63,
+          "steps_max": 3,
+          "n_truncated": 70
+        },
+        "edge_cases": {
+          "history_field_truncated": 196,
+          "history_truncated": 70,
+          "missing_label": 1817,
+          "scanner_first_step_skipped": 675
+        }
+      },
+      "scanner_thought_raw": {
+        "rows": 1142,
+        "trajectories": 571,
+        "history": {
+          "chars_mean": 1023.7,
+          "chars_p50": 460.0,
+          "chars_p90": 2862.0,
+          "chars_p99": 3646.0,
+          "chars_max": 3995,
+          "steps_mean": 1.61,
+          "steps_max": 3,
+          "n_truncated": 81
+        },
+        "edge_cases": {
+          "empty_thought": 905,
+          "history_field_truncated": 196,
+          "history_truncated": 81,
+          "missing_label": 1817,
+          "scanner_first_step_skipped": 675
+        }
+      },
+      "gate_raw": {
+        "rows": 1817,
+        "trajectories": 675,
+        "history": {
+          "chars_mean": 1040.1,
+          "chars_p50": 760.0,
+          "chars_p90": 2625.0,
+          "chars_p99": 3684.0,
+          "chars_max": 3990,
+          "steps_mean": 0.97,
+          "steps_max": 3,
+          "n_truncated": 115
+        },
+        "edge_cases": {
+          "history_field_truncated": 196,
+          "history_truncated": 115,
+          "missing_label": 1817
+        }
+      },
+      "gate_thought_raw": {
+        "rows": 1817,
+        "trajectories": 675,
+        "history": {
+          "chars_mean": 1113.3,
+          "chars_p50": 794.0,
+          "chars_p90": 2829.0,
+          "chars_p99": 3836.0,
+          "chars_max": 4020,
+          "steps_mean": 0.94,
+          "steps_max": 3,
+          "n_truncated": 144
+        },
+        "edge_cases": {
+          "empty_thought": 905,
+          "history_field_truncated": 196,
+          "history_truncated": 144,
+          "missing_label": 1817
+        }
+      }
+    }
+  },
+  "checks_passed": true,
+  "failures": []
 }
