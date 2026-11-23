@@ -578,15 +578,17 @@ def text_projection(d: dict, per_label: int = 600, seed: int = SEED) -> tuple[pd
 
 
 def load_atbench() -> pd.DataFrame:
-    """ATBench (1,000 trajectories) summarised per trajectory: label, risk source, number of agent
-    actions, tools available, task length. In-scope risk sources fixed in JOURNAL 19/11."""
-    cfg = load_config("data")["atbench"]
-    raw = json.loads((ROOT / cfg["raw_dir"] / "ATBench" / "test.json").read_text(encoding="utf-8"))
-    in_scope = {"indirect_prompt_injection", "tool_description_injection", "corrupted_tool_feedback"}
+    """ATBench (1,000 trajectories) summarised per trajectory: label, risk source, number of tool calls,
+    tools available, task length. In-scope risk sources fixed in JOURNAL 19/11 (configs/data.yaml)."""
+    from agentdrift.data.external import parse_action, read_raw
+
+    raw = read_raw()
+    in_scope = set(load_config("data")["atbench"]["scope_risk_sources"])
     rows = []
     for r in raw:
         conv = [m for c in r["contents"] for m in c]
-        actions = [m for m in conv if m["role"] == "agent" and m.get("action")]
+        # tool calls only (as AgentDrift steps); replies to the user are not actions on the world
+        actions = [m for m in conv if m["role"] == "agent" and parse_action(m.get("action"))[0] == "call"]
         task = next((m["content"] for m in conv if m["role"] == "user"), "")
         env = [m["content"] for m in conv if m["role"] == "environment"]
         rows.append(
@@ -609,7 +611,7 @@ def compare_external(d: dict, atb: pd.DataFrame) -> pd.DataFrame:
     pools = json.loads((ROOT / load_config("data")["agentdrift"]["raw_dir"] / "pools" / "tool_pools.json").read_text())
     ad = pd.DataFrame(
         {
-            "steps / actions per trajectory": traj["n_steps"].describe(),
+            "tool calls per trajectory": traj["n_steps"].describe(),
             "tools available per trajectory": traj["domain"].map({k: len(v) for k, v in pools.items()}).describe(),
             "task length (chars)": traj["task"].str.len().describe(),
             "observation length (chars, median per trajectory)": steps["obs"].str.len().groupby(steps["traj_id"]).median().describe(),
@@ -617,7 +619,7 @@ def compare_external(d: dict, atb: pd.DataFrame) -> pd.DataFrame:
     ).T[["mean", "50%", "max"]]
     ab = pd.DataFrame(
         {
-            "steps / actions per trajectory": atb["n_actions"].describe(),
+            "tool calls per trajectory": atb["n_actions"].describe(),
             "tools available per trajectory": atb["n_tools_available"].describe(),
             "task length (chars)": atb["task_chars"].describe(),
             "observation length (chars, median per trajectory)": atb["obs_chars_median"].describe(),

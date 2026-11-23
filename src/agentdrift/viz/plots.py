@@ -368,7 +368,7 @@ def plot_projection(pts: pd.DataFrame) -> plt.Figure:
 
 def plot_external(traj: pd.DataFrame, atb: pd.DataFrame) -> plt.Figure:
     pairs = [
-        ("agent actions per trajectory", traj["n_steps"], atb["n_actions"], np.arange(0.5, 32.5, 1)),
+        ("tool calls per trajectory", traj["n_steps"], atb["n_actions"], np.arange(-0.5, 23.5, 1)),
         ("task length (characters)", traj["task"].str.len(), atb["task_chars"], np.linspace(0, 900, 37)),
     ]
     fig, axes = plt.subplots(1, 2, figsize=(10, 2.9))

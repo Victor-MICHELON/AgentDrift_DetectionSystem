@@ -22,6 +22,9 @@ atbench:
   raw_dir: data/external/atbench
   sha256:   # ATBench config = latest 1,000-trajectory release (ATBench500 = legacy, not used)
     ATBench/test.json: 80c534b5f3517c872b528a2e6b64e34495206968edd184f4aed563d39f0cca09
+  # Evaluation scope fixed on 19/11, before any model (JOURNAL): unsafe trajectories whose risk is an injection,
+  # plus every safe trajectory (safe ones with another risk source = resisted risks, i.e. hard negatives).
+  scope_risk_sources: [indirect_prompt_injection, tool_description_injection, corrupted_tool_feedback]
 
 agentdojo:
   source: https://github.com/ethz-spylab/agentdojo

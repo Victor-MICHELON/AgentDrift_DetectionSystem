@@ -20,7 +20,7 @@
 | 8 | Splits groupés + `folds.parquet` | protocole | ✅ fait (20/11) |
 | **9** | **EDA, partie C : protocole d'évaluation + synthèse** | analyse | ✅ fait (23/11) |
 | 10 | Tests anti-fuite | protocole | 🔄 en grande partie couvert (20/11) ; reste L12 (attend `features/views.py`) |
-| 11 | Adaptateur ATBench → schéma d'étapes (`data/external.py`) | mise en forme | à faire (avant la phase 4) |
+| 11 | Adaptateur ATBench → schéma d'étapes (`data/external.py`) | mise en forme | ✅ fait (23/11) ; anonymisation d'ATBench et traitement des relances utilisateur à trancher (décisions 5 et 6) |
 
 **Ordre :** 2 → 3 → 4 → 5 → (6 ∥ 8) → 7 → 9 → 10 → 11. L'étape 8 ne dépend que des métadonnées des trajectoires ; l'étape 6 est un travail humain (préparation possible par l'IA, validation et relecture par l'équipe) et ne doit pas bloquer le reste.
 
@@ -202,6 +202,25 @@ Il reste donc un seul test propre au Lot A (L12), qui dépend d'une interface du
 
 ---
 
+## Étape 11 — Adaptateur ATBench (`src/agentdrift/data/external.py`) ✅
+
+Fait le 23/11 : `python -m agentdrift.data.external` (≈ 1 s) → `data/interim/atbench_{trajectories,steps,tools}.parquet` ; lecture `read_atbench(in_scope_only=True)`. Tests : `tests/test_external.py` (5). Périmètre dans `configs/data.yaml` (`scope_risk_sources`).
+
+**Correspondance.** ATBench est une conversation (`user` / `agent` / `environment`). **Une étape = un appel d'outil** (`{"name", "arguments"}`), avec `obs` = la réponse de l'environnement qui suit, comme dans AgentDrift. Les réponses de l'agent à l'utilisateur (`Complete{"response": …}`, 1 520) ne sont pas des appels : pas d'étape, comptées par trajectoire. `label` d'étape absent (évaluation par trajectoire, `y_traj` = label ATBench). `task` = **premier message utilisateur seulement** ; les relances (325 trajectoires multi-tours) arrivent pendant la trajectoire : les mettre dans `task` montrerait au détecteur une demande postérieure à l'étape (L3). Elles sont gardées de façon causale dans `user_followup` (messages reçus juste avant l'appel) mais ne sont pas lues par `features/views.py`.
+
+| Résultat (23/11) | |
+|---|---|
+| Trajectoires / appels d'outil | 1 000 / 2 972 (3,0 par trajectoire, contre 5,7 dans AgentDrift) |
+| Périmètre (fixé le 19/11) | 676 = 173 dangereuses (injection indirecte, description d'outil, retour d'outil corrompu) + 503 sûres |
+| Cas particuliers | 6 arguments donnés en chaîne JSON (relus) ; 1 appel sans réponse (`obs` vide) ; 1 trajectoire sans appel ; 0 action non comprise |
+| Compatibilité avec `views.py` (`main`, PR #2) | vérifiée hors branche : portail 1 817 lignes / 675 trajectoires, scanner 1 142 lignes / 571 trajectoires, avec et sans `thought` |
+
+**Constats pour l'évaluation (phase 4).**
+- **Angle mort du scanner** : pour `tool_description_injection` (102 trajectoires du périmètre), l'injection est dans la description de l'outil (`atbench_tools.parquet`), jamais dans une réponse. Rapporter les résultats par source de risque.
+- 105 trajectoires du périmètre ont au plus un appel : le scanner (qui ne lit `o_{t-1}` que si une action suit) n'y lit rien. Une trajectoire sans ligne de vue compte comme « pas d'alerte ».
+- Les colonnes `y_traj`, `risk_source`, `failure_mode`, `real_world_harm`, `annotator_reason`, `in_scope` révèlent la réponse : jamais en entrée (`FORBIDDEN_TRAJECTORY_FIELDS`, vérifié par `validate`).
+- L'EDA (A10) compte désormais les appels d'outil et non toutes les actions de l'agent (réponses comprises) ; périmètre lu dans la configuration.
+
 ## Critères de fin de la phase
 
 - `python -m agentdrift.pipelines.run_eda` reproduit les chiffres du notebook ; écarts avec les mesures du 19/11 notés dans JOURNAL.
@@ -214,3 +233,5 @@ Il reste donc un seul test propre au Lot A (L12), qui dépend d'une interface du
 2. ~~Anonymisation dans `data/`, masquage H3 dans `features/`~~ — appliqué le 20/11 (à confirmer en équipe).
 3. Relecteur de `tool_risk.yaml` et de `injection_visible.csv` ?
 4. **Proposé par l'EDA C (23/11)** : 1 % de FPR par étape comme point de fonctionnement principal ; 0,2 % rapporté comme point secondaire, toujours avec le FPR observé et sa dispersion sur les plis (≈ 15 faux positifs attendus sur le test). Résultats au seuil rapportés aussi en moyenne ± écart-type sur les plis, car l'IC bootstrap à seuil fixe ne couvre pas la variabilité du seuil.
+5. **Anonymisation d'ATBench** : les modèles apprennent sur un texte anonymisé (`<USER>`, `<EXT_EMAIL_k>`…) mais ATBench n'a pas de monde simulé, donc pas de référence « interne / externe ». Options : appliquer seulement les espaces réservés génériques (adresses, URL), ou laisser le texte brut et mesurer l'écart. À trancher avant la phase 4 (Lot B pour le masquage).
+6. **Relances utilisateur d'ATBench** (325 trajectoires) : les ignorer (choix actuel, `task` = premier message) ou les ajouter de façon causale à la tâche vue à chaque étape (demande une évolution de `features/views.py`). Rapporter au minimum les résultats sur les trajectoires à un seul tour.
