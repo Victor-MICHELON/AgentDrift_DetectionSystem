@@ -740,13 +740,16 @@ def provenance_indicators_anon(steps: pd.DataFrame, traj: pd.DataFrame) -> pd.Da
     return pd.DataFrame(rows, columns=cols, index=s.index).reindex(steps.index)
 
 
-def provenance_before_after(d_raw: dict, d_anon: dict) -> pd.DataFrame:
-    """Provenance rates by step group, raw vs anonymised (columns: indicator x version)."""
+def provenance_before_after(d_raw: dict, d_anon: dict, d_masked: dict | None = None) -> pd.DataFrame:
+    """Provenance rates by step group, raw vs anonymised (vs masked) (columns: indicator x version)."""
     before = provenance_by_group(d_raw)
-    ind = provenance_indicators_anon(d_anon["steps"], d_anon["trajectories"])
-    after = provenance_by_group(d_anon, ind)
     cols = [c for c in before.columns if c != "n"]
-    return pd.concat({"raw": before[cols], "anonymised": after[cols]}, axis=1).swaplevel(axis=1).sort_index(axis=1, level=0)
+    versions = {"raw": before[cols]}
+    for name, dv in (("anonymised", d_anon), ("masked", d_masked)):
+        if dv is not None:
+            ind = provenance_indicators_anon(dv["steps"], dv["trajectories"])
+            versions[name] = provenance_by_group(dv, ind)[cols]
+    return pd.concat(versions, axis=1).swaplevel(axis=1).sort_index(axis=1, level=0)
 
 
 def trajectory_text(traj: pd.DataFrame, steps: pd.DataFrame) -> pd.Series:
@@ -798,7 +801,7 @@ def load_inputs_anon() -> dict[str, pd.DataFrame]:
 
 
 def masking_function():
-    """`features.masking.mask_artifacts` (Lot B, KAN-19) if it exists yet, else None."""
+    """`features.masking.mask_artifacts` (KAN-19 / KAN-59) if it exists, else None."""
     try:
         from agentdrift.features.masking import mask_artifacts
     except ImportError:
@@ -806,15 +809,28 @@ def masking_function():
     return mask_artifacts
 
 
-def text_before_after(d_raw: dict, d_anon: dict, seed: int = SEED) -> pd.DataFrame:
+def load_inputs_masked(d_anon: dict) -> dict[str, pd.DataFrame] | None:
+    """Anonymised tables with the generator artefacts masked (`features.masking.mask_tables`), None if the module
+    does not exist. Masking is row-wise and fits nothing: applying it to all parts is not a leak."""
+    if masking_function() is None:
+        return None
+    from agentdrift.features.masking import mask_tables
+
+    traj, steps = mask_tables(d_anon["trajectories"], d_anon["steps"])
+    return {"trajectories": traj, "steps": steps}
+
+
+def text_before_after(d_raw: dict, d_anon: dict, seed: int = SEED, d_masked: dict | None = None) -> pd.DataFrame:
     """Side-by-side text of one injection step per attack category (train only, seeded), raw / anonymised
-    (/ masked once `features/masking.py` exists). Picked among steps whose text the anonymisation changed."""
+    (/ masked when `d_masked` is given). Picked among steps whose text the anonymisation changed."""
     raw, anon = d_raw["steps"], d_anon["steps"]
     key = ["traj_id", "t"]
     both = raw.merge(anon[key + ["thought", "args_json", "obs"]], on=key, suffixes=("", "_anon"))
+    if d_masked is not None:
+        both = both.merge(d_masked["steps"][key + ["thought", "args_json", "obs"]].rename(
+            columns={f: f"{f}_masked" for f in ("thought", "args_json", "obs")}), on=key)
     both = both[(both["origin_split"] == "train") & both["label"].isin(["injection_point", "failed_injection"])]
     changed = (both["obs"] != both["obs_anon"]) | (both["args_json"] != both["args_json_anon"])
-    mask = masking_function()
     rows = []
     for sc in ["attacked_full", "attacked_partial", "attacked_delayed", "failed_attack"]:
         pool = both[changed & (both["source_category"] == sc)].sort_values(key)
@@ -823,8 +839,8 @@ def text_before_after(d_raw: dict, d_anon: dict, seed: int = SEED) -> pd.DataFra
         s = pool.iloc[int(np.random.default_rng(seed).integers(len(pool)))]
         for field in ["thought", "args_json", "obs"]:
             row = {"example": sc, "field": field, "raw": s[field], "anonymised": s[f"{field}_anon"]}
-            if mask is not None:
-                row["masked"] = mask(s[f"{field}_anon"])
+            if d_masked is not None:
+                row["masked"] = s[f"{field}_masked"]
             rows.append(row)
     return pd.DataFrame(rows).set_index(["example", "field"])
 
@@ -841,12 +857,94 @@ def residual_before_after(d_raw: dict, d_anon: dict) -> pd.DataFrame:
     return out
 
 
-def world_probe_before_after(d_raw: dict, d_anon: dict) -> pd.DataFrame:
-    """Text-only world probe (train -> val) on the raw and the anonymised text, with its chance levels."""
-    return pd.DataFrame({
+def world_probe_before_after(d_raw: dict, d_anon: dict, d_masked: dict | None = None) -> pd.DataFrame:
+    """Text-only world probe (train -> val) on the raw, anonymised (and masked) text, with its chance levels."""
+    out = {
         "raw": world_probe(d_raw["trajectories"], d_raw["steps"]),
         "anonymised": world_probe(d_anon["trajectories"], d_anon["steps"]),
-    }).T
+    }
+    if d_masked is not None:
+        out["masked"] = world_probe(d_masked["trajectories"], d_masked["steps"])
+    return pd.DataFrame(out).T
+
+
+# --------------------------------------------------------------------------- part B5: masking of generator artefacts
+
+INJECTION_GROUPS = {"attacked_full": "full", "attacked_partial": "partial", "attacked_delayed": "delayed",
+                    "failed_attack": "failed"}
+EXT_PLACEHOLDER_RE = re.compile(r"<EXT_(?:EMAIL|URL|DOMAIN)_\d+>")
+
+
+def _injection_steps(steps: pd.DataFrame) -> pd.DataFrame:
+    inj = steps[steps["label"].isin(["injection_point", "failed_injection"])]
+    return inj.assign(attack=inj["source_category"].map(INJECTION_GROUPS))
+
+
+def masking_rates(d_anon: dict) -> pd.DataFrame:
+    """Share of tool responses touched by each masking rule, per step group (computed on the anonymised text).
+    On normal steps (B) the header and policy-code rules are false maskings: the price of a generic rule."""
+    from agentdrift.features.masking import mask_counts
+
+    steps = d_anon["steps"]
+    groups = step_groups(steps)
+    c = mask_counts(steps["obs"])
+    c["header or policy code"] = c["header"] | c["policy code"]
+    out = c.groupby(groups).mean()
+    out["n"] = groups.value_counts()
+    return out.reindex([g for g in ["B", "I", "F", "H full", "H partial", "H delayed"] if g in out.index])
+
+
+def injection_signals(d_anon: dict, d_masked: dict) -> pd.DataFrame:
+    """Per attack type, share of poisoned responses with: a generator tic (A6 openers or a policy code), the
+    instruction vocabulary of A6, an outside address or link (placeholder) -- before / after masking.
+    Columns: signal x version."""
+    out = {}
+    prefix_any = re.compile("|".join(r.pattern for k, r in INJECTION_PREFIXES.items() if k != "Per policy …"))
+    code_re = re.compile(r"(?i)\b(?:policy|protocol|regulation|directive|mandate|guideline)\s+#?[\w<>.-]*\d")
+    for name, dv in (("anonymised", d_anon), ("masked", d_masked)):
+        inj = _injection_steps(dv["steps"])
+        obs = inj["obs"]
+        sig = pd.DataFrame({
+            "generator tic (opener or policy code)": obs.str.contains(prefix_any) | obs.str.contains(code_re),
+            "instruction vocabulary": obs.str.contains(INSTRUCTION_RE),
+            "outside address or link": obs.str.contains(EXT_PLACEHOLDER_RE),
+        })
+        out[name] = sig.groupby(inj["attack"]).mean()
+    t = pd.concat(out, axis=1).swaplevel(axis=1).sort_index(axis=1, level=0)
+    return t.reindex(list(INJECTION_GROUPS.values()))
+
+
+def attack_type_probe(steps: pd.DataFrame, train: str = "train", evaluate: str = "val", seed: int = SEED) -> dict:
+    """Does the TEXT of an injection tell its attack type (full / partial / delayed / failed), i.e. whether and how
+    the attack will succeed? TF-IDF + logistic regression on the poisoned response, fitted on train, scored on val.
+    A real injection does not announce its outcome: what this probe finds is a generator signature."""
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score, balanced_accuracy_score, recall_score
+    from sklearn.pipeline import make_pipeline
+
+    inj = _injection_steps(steps)
+    tr, ev = inj[inj["origin_split"] == train], inj[inj["origin_split"] == evaluate]
+    model = make_pipeline(TfidfVectorizer(sublinear_tf=True, ngram_range=(1, 2), min_df=2,
+                                          token_pattern=r"(?u)<[A-Z_0-9]+>|\b\w\w+\b"),
+                          LogisticRegression(max_iter=2000, C=1.0, random_state=seed))
+    model.fit(tr["obs"], tr["attack"])
+    pred = model.predict(ev["obs"])
+    labels = list(INJECTION_GROUPS.values())
+    recall = recall_score(ev["attack"], pred, labels=labels, average=None, zero_division=0)
+    return {
+        "n_eval": len(ev),
+        "accuracy": round(float(accuracy_score(ev["attack"], pred)), 3),
+        "balanced_accuracy": round(float(balanced_accuracy_score(ev["attack"], pred)), 3),
+        "majority_class": round(float(ev["attack"].value_counts(normalize=True).max()), 3),
+        "chance_balanced": round(1 / ev["attack"].nunique(), 3),
+        **{f"recall {lab}": round(float(r), 3) for lab, r in zip(labels, recall)},
+    }
+
+
+def attack_type_probe_before_after(d_anon: dict, d_masked: dict) -> pd.DataFrame:
+    return pd.DataFrame({"anonymised": attack_type_probe(d_anon["steps"]),
+                         "masked": attack_type_probe(d_masked["steps"])}).T
 
 
 def tool_risk_by_group(steps: pd.DataFrame, table: pd.DataFrame, allow_draft: bool = False) -> pd.DataFrame | None:
@@ -1166,7 +1264,7 @@ def _repro(metrics_a: dict, measure: str):
 SYNTHESIS_STATUS = [
     "implemented (splits/grouped.py)", "implemented (data/anonymize.py)", "implemented (EDA B3)",
     "implemented", "in progress (L12 test)", "implemented (features/views.py)",
-    "in progress (KAN-19, KAN-58)", "implemented (views: include_thought=False)", "decided (CONTEXT 8.2)",
+    "in progress (masking done; KAN-58)", "implemented (views: include_thought=False)", "decided (CONTEXT 8.2)",
     "decided (CONTEXT 8.2)", "implemented (evaluation/bootstrap.py)", "implemented (evaluation/bootstrap.py)",
     "proposed", "decided (CONTEXT 8.1)",
 ]

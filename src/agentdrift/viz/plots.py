@@ -390,8 +390,10 @@ def plot_external(traj: pd.DataFrame, atb: pd.DataFrame) -> plt.Figure:
 VERSION_COLORS = {"raw": INK_3, "anonymised": SERIES[0], "masked": SERIES[2]}
 
 
-def plot_before_after_bars(table: pd.DataFrame, title: str, xlabel: str) -> plt.Figure:
-    """Paired horizontal bars, one colour per text version (columns of `table` among raw / anonymised / masked)."""
+def plot_before_after_bars(table: pd.DataFrame, title: str, xlabel: str, reference: tuple[str, float] | None = None
+                           ) -> plt.Figure:
+    """Paired horizontal bars, one colour per text version (columns of `table` among raw / anonymised / masked);
+    optional dashed reference line (label, value), e.g. a chance level."""
     versions = [v for v in VERSION_COLORS if v in table.columns]
     fig, ax = plt.subplots(figsize=(7.5, 0.55 * len(table) + 1.3))
     h = 0.8 / len(versions)
@@ -408,7 +410,12 @@ def plot_before_after_bars(table: pd.DataFrame, title: str, xlabel: str) -> plt.
     ax.set_xlim(0, max(0.1, float(table[versions].to_numpy(dtype=float).max()) * 1.18))
     ax.xaxis.set_major_formatter(mpl.ticker.PercentFormatter(1, decimals=0))
     ax.set_xlabel(xlabel)
-    _legend_top(ax, _patches(VERSION_COLORS, versions))
+    handles = _patches(VERSION_COLORS, versions)
+    if reference is not None:
+        ax.axvline(reference[1], color=INK_3, linewidth=1.2, linestyle=(0, (3, 3)))
+        handles.append(mpl.lines.Line2D([], [], color=INK_3, linewidth=1.2, linestyle=(0, (3, 3)),
+                                        label=f"{reference[0]} ({reference[1]:.0%})"))
+    _legend_top(ax, handles)
     ax.set_title(title, pad=24)
     return fig
 
@@ -437,16 +444,45 @@ def plot_world_probe(probe: pd.DataFrame) -> plt.Figure:
 
 
 def plot_provenance_before_after(table: pd.DataFrame) -> plt.Figure:
-    """Two heatmaps side by side: provenance rates on the raw and on the anonymised text."""
-    raw = table.xs("raw", axis=1, level=1)
-    anon = table.xs("anonymised", axis=1, level=1)
-    fig, axes = plt.subplots(1, 2, figsize=(12, 0.42 * len(raw) + 1.6), sharey=True)
-    for ax, t, name in [(axes[0], raw, "raw text"), (axes[1], anon, "anonymised text")]:
-        heatmap(ax, t, vmax=max(float(raw.to_numpy().max()), float(anon.to_numpy().max())))
-        ax.set_title(name, fontsize=10)
-    fig.suptitle("Argument provenance before and after anonymisation (share of steps)", x=0.01, ha="left",
+    """Heatmaps side by side: provenance rates on each text version present (raw, anonymised, masked)."""
+    versions = [v for v in VERSION_COLORS if v in set(table.columns.get_level_values(1))]
+    tabs = {v: table.xs(v, axis=1, level=1) for v in versions}
+    vmax = max(float(t.to_numpy().max()) for t in tabs.values())
+    fig, axes = plt.subplots(1, len(versions), figsize=(6 * len(versions), 0.42 * len(tabs[versions[0]]) + 1.6),
+                             sharey=True)
+    for ax, v in zip(np.atleast_1d(axes), versions):
+        heatmap(ax, tabs[v], vmax=vmax)
+        ax.set_title(f"{v} text", fontsize=10)
+    fig.suptitle("Argument provenance on each version of the text (share of steps)", x=0.01, ha="left",
                  fontweight="bold", fontsize=11)
     fig.tight_layout()
+    return fig
+
+
+def plot_injection_signals(table: pd.DataFrame) -> plt.Figure:
+    """Per attack type, share of poisoned responses carrying each signal, before / after masking."""
+    signals = list(dict.fromkeys(table.columns.get_level_values(0)))
+    versions = [v for v in VERSION_COLORS if v in set(table.columns.get_level_values(1))]
+    fig, axes = plt.subplots(1, len(signals), figsize=(4.2 * len(signals), 0.55 * len(table) + 1.6), sharey=True)
+    h = 0.8 / len(versions)
+    y = np.arange(len(table))
+    for ax, sig in zip(np.atleast_1d(axes), signals):
+        for k, v in enumerate(versions):
+            vals = table[(sig, v)].astype(float).to_numpy()
+            yy = y + (k - (len(versions) - 1) / 2) * h
+            ax.barh(yy, vals, height=h * 0.9, color=VERSION_COLORS[v])
+            for yi, val in zip(yy, vals):
+                ax.text(val + 0.02, yi, "0" if val == 0 else ("<1%" if val < 0.005 else f"{val:.0%}"),
+                        va="center", fontsize=7.5, color=INK_2)
+        ax.set_title(textwrap.fill(sig, 26), fontsize=9.5)
+        ax.set_xlim(0, 1.25)
+        ax.xaxis.set_major_formatter(mpl.ticker.PercentFormatter(1, decimals=0))
+        ax.grid(axis="y", visible=False)
+    ax0 = np.atleast_1d(axes)[0]
+    ax0.set_yticks(y, [f"{i} injections" for i in table.index])
+    ax0.invert_yaxis()
+    _figure_header(fig, "What is left in the poisoned response once the generator's tics are masked?",
+                   _patches(VERSION_COLORS, versions), top=0.82)
     return fig
 
 

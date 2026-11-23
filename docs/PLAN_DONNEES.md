@@ -16,10 +16,10 @@
 | **4** | **EDA, partie A : données brutes** | analyse | ✅ fait (20/11) |
 | 5 | Anonymisation (masquage H3 → Lot B, `features/masking.py`) | prétraitement | ✅ anonymisation faite (20/11) |
 | 6 | Annotations manuelles (risque des outils, `injection_visible`) | enrichissement | 🔄 brouillons prêts (21/11), relecture humaine à faire |
-| **7** | **EDA, partie B : effet du prétraitement** | analyse | 🔄 anonymisation faite (22/11) ; masquage (KAN-19) et annotations (KAN-58) en attente |
+| **7** | **EDA, partie B : effet du prétraitement** | analyse | 🔄 anonymisation (22/11) et masquage (23/11, KAN-59) faits ; annotations (KAN-58) en attente |
 | 8 | Splits groupés + `folds.parquet` | protocole | ✅ fait (20/11) |
 | **9** | **EDA, partie C : protocole d'évaluation + synthèse** | analyse | ✅ fait (23/11) |
-| 10 | Tests anti-fuite | protocole | 🔄 en grande partie couvert (20/11) ; reste L12 (attend `features/views.py`) |
+| 10 | Tests anti-fuite | protocole | ✅ fait (23/11) ; le test L12 s'active à la fusion de `main` (`features/views.py`) |
 | 11 | Adaptateur ATBench → schéma d'étapes (`data/external.py`) | mise en forme | ✅ fait (23/11) ; anonymisation d'ATBench et traitement des relances utilisateur à trancher (décisions 5 et 6) |
 
 **Ordre :** 2 → 3 → 4 → 5 → (6 ∥ 8) → 7 → 9 → 10 → 11. L'étape 8 ne dépend que des métadonnées des trajectoires ; l'étape 6 est un travail humain (préparation possible par l'IA, validation et relecture par l'équipe) et ne doit pas bloquer le reste.
@@ -138,13 +138,13 @@ Fait le 22/11 (partie anonymisation) : `notebooks/02_eda_preprocessing.ipynb` (n
 | B2 | Identifiants du monde restants | 41 % / 15 % / 27 % / 44 % des trajectoires → 0 ; 3 faux positifs du libellé de domaine | ✅ |
 | B3 | Sonde textuelle du monde (`world_probe`) contre le hasard à domaine × catégorie égaux | 12,2 % → 3,1 % (hasard 2,1 %) | ✅ |
 | B4 | Provenance avant / après (`provenance_before_after`) | écart maximal 0,33 point | ✅ |
-| B5 | Masquage H3 | — | ⏳ `features/masking.py` (KAN-19) ; la section se remplit automatiquement |
+| B5 | Masquage H3 (`features/masking.py`, 23/11, KAN-59) : en-tête en majuscules ouvrant une phrase + « : » → `<HEADER>`, code après « per … policy / protocol » → `<CODE>`, montants → `<AMOUNT_k>` numérotés dans la trajectoire ; règles conçues sur le train seul | faux masquages 0,1 % des réponses normales ; tics 99 % → 8 % (complètes), 62 % → 0 % (partielles), 38 % → 1 % (retardées), 99 % → 37 % (échouées) ; vocabulaire d'instruction et adresse externe inchangés ; **sonde du type d'attaque 96,1 % → 95,2 %** (hasard 25 %) : le type reste lisible par le contenu de la demande ; sonde du monde 3,3 %, provenance inchangée (≤ 0,23 point hors montants) | ✅ ; comparaison des modèles avec / sans masquage = KAN-19 partie 2 |
 | B6 | Catégories de risque des outils × labels | effectifs et 20 cas ambigus affichés ; **croisement avec les labels masqué tant que `tool_risk.yaml` n'est pas validé** (sinon la relecture pourrait s'ajuster sur les labels) | ⏳ KAN-58 |
 | B7 | `injection_visible` par catégorie, accord avec l'union des expressions régulières de A6 (kappa de Cohen) | 0 / 300 annotées | ⏳ KAN-58 |
 
 La baseline « monde seul » par `world_id` n'est **pas** un critère (indépendante du texte). Le notebook 01 a été corrigé sur ce point et sur la liste de préfixes (remplacée par la règle générique), puis réexécuté : tous les tableaux de la partie A sont inchangés.
 
-**Pour finir l'étape :** réexécuter le notebook 02 et `run_eda --part B` quand KAN-19 et KAN-58 sont faits, puis rédiger les constats de B5 à B7.
+**Pour finir l'étape :** réexécuter le notebook 02 et `run_eda --part B` quand KAN-58 est fait, puis rédiger les constats de B6 et B7.
 
 ## Étape 8 — Splits (`src/agentdrift/splits/grouped.py`) ✅
 
@@ -195,10 +195,10 @@ Le tableau C6 lit les `metrics.json` des parties A et B : relancer `--part A` et
 | Validation interne groupée par gabarit | `test_inner_splits_are_grouped_by_template` | ✅ |
 | Invariants du schéma sur une fixture | `test_data.py::test_toy_tables_pass_schema`, `test_violations_are_reported` | ✅ |
 | Aucun nom / adresse / société du monde après anonymisation | `test_anonymize.py::test_corpus_has_no_world_identity_left` | ✅ |
-| L12 : aucune colonne de métadonnées dans la liste des variables exposée | — | à faire quand `features/views.py` exposera sa liste de variables (Lot B, KAN-16) |
+| L12 : aucune colonne de métadonnées dans la liste des variables exposée | métadonnées du schéma : `test_views.py::test_forbidden_fields_never_in_output`, `test_every_schema_metadata_column_is_classified` (Lot B) ; colonnes ajoutées par le Lot A (plis, annotations, champs d'ATBench) : `test_leakage_l12.py` (23/11, sauté tant que `views.py` n'est pas fusionné ; 5 tests verts sur le code fusionné) | ✅ |
 | L3 / L11 (vues strictes) | — | relève de `features/views.py` (Lot B) ; interface fournie : `steps.parquet` + cibles |
 
-Il reste donc un seul test propre au Lot A (L12), qui dépend d'une interface du Lot B.
+Vérification de la fusion avec `main` (23/11, copie hors dépôt, sans opération git) : 130 tests verts (73 du Lot A + 52 des vues + 5 L12). Seul conflit textuel prévu, `docs/JOURNAL.md`, désamorcé : les entrées du Lot A postérieures au 20/11 sont dans une section « Suite du journal » en fin de fichier.
 
 ---
 

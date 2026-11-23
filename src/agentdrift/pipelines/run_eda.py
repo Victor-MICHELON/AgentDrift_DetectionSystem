@@ -122,12 +122,16 @@ def compute_b(d: dict, da: dict) -> dict:
     tool_risk = N.read_tool_risk()
     sheet = N.read_injection_visible() if N.INJECTION_VISIBLE_PATH.exists() else None
     full_sheet = N.read_injection_visible(annotated_only=False) if sheet is not None else None
+    dm = A.load_inputs_masked(da)
     return {
-        "masking_available": A.masking_function() is not None,
-        "text_before_after": A.text_before_after(d, da),
+        "masking_available": dm is not None,
+        "text_before_after": A.text_before_after(d, da, d_masked=dm),
         "residual": A.residual_before_after(d, da),
-        "world_probe": A.world_probe_before_after(d, da),
-        "provenance": A.provenance_before_after(d, da),
+        "world_probe": A.world_probe_before_after(d, da, dm),
+        "provenance": A.provenance_before_after(d, da, dm),
+        "masking_rates": None if dm is None else A.masking_rates(da),
+        "injection_signals": None if dm is None else A.injection_signals(da, dm),
+        "attack_type_probe": None if dm is None else A.attack_type_probe_before_after(da, dm),
         "tool_risk_status": {"status": tool_risk.attrs["status"], "reviewer": tool_risk.attrs["reviewer"],
                              "n_ambiguous": int(tool_risk["ambiguous"].sum())},
         "tool_risk_counts": tool_risk["risk"].value_counts().reindex(list(N.RISK_CATEGORIES)),
@@ -145,6 +149,13 @@ def figures_b(rb: dict) -> dict:
         "eda_b2_world_probe": P.plot_world_probe(rb["world_probe"]),
         "eda_b3_provenance": P.plot_provenance_before_after(rb["provenance"]),
     }
+    if rb["injection_signals"] is not None:
+        figs["eda_b6_injection_signals"] = P.plot_injection_signals(rb["injection_signals"])
+        figs["eda_b7_attack_type_probe"] = P.plot_before_after_bars(
+            rb["attack_type_probe"][["accuracy", "balanced_accuracy"]].T.rename(
+                index={"balanced_accuracy": "balanced accuracy"}),
+            "Can the text of an injection tell its attack type?", "validation score (fitted on train)",
+            reference=("chance, 4 balanced types", float(rb["attack_type_probe"]["chance_balanced"].iloc[0])))
     if rb["tool_risk_by_group"] is not None:
         figs["eda_b4_tool_risk"] = P.plot_table_heatmap(
             rb["tool_risk_by_group"].drop(columns="n"), "Tool risk category of the proposed action, by step group")
@@ -222,8 +233,8 @@ def run_a(d: dict, seed: int) -> None:
 def run_b(d: dict, seed: int) -> None:
     rb = compute_b(d, A.load_inputs_anon())
     OUT_B.mkdir(parents=True, exist_ok=True)
-    tables = ["residual", "world_probe", "provenance", "tool_risk_by_group", "annotation_progress",
-              "visible_vs_heuristic"]
+    tables = ["residual", "world_probe", "provenance", "masking_rates", "injection_signals", "attack_type_probe",
+              "tool_risk_by_group", "annotation_progress", "visible_vs_heuristic"]
     metrics = {
         "run": {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": seed, "git": _git_hash()},
         "masking_available": rb["masking_available"],

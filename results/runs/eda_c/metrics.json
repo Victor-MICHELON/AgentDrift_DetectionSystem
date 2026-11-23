@@ -1,8 +1,8 @@
 {
   "run": {
-    "date": "2026-11-23T09:37:28+00:00",
+    "date": "2026-11-23T10:48:32+00:00",
     "seed": 42,
-    "git": "236c2e2-dirty"
+    "git": "04335d1-dirty"
   },
   "grouping": {
     "dev_templates": 215,
@@ -648,7 +648,7 @@
         "Mask generator artefacts (generic upper-case label rule, policy codes, amounts); recall by attack type and by visibility",
         "preprocessing + metric",
         "H3, H2, H8",
-        "in progress (KAN-19, KAN-58)"
+        "in progress (masking done; KAN-58)"
       ],
       [
         "The generated thought confesses the attack",
