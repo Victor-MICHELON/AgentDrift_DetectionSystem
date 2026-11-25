@@ -1,0 +1,8 @@
+,blocks,blocks,blocks,eda,eda,eda,gap,gap,gap,n
+,arg from previous obs,unknown address,external domain,arg from previous obs,unknown address,external domain,arg from previous obs,unknown address,external domain,rows
+B,0.1857,0.0442,0.0228,0.1879,0.045,0.0224,-0.0022,-0.0008,0.0003,44591
+I,0.1485,0.0116,0.0071,0.1512,0.0112,0.0063,-0.0027,0.0004,0.0008,4761
+F,0.1404,0.0086,0.0086,0.142,0.008,0.008,-0.0016,0.0006,0.0006,1282
+H full,0.4562,0.4345,0.4264,0.453,0.4323,0.4256,0.0032,0.0023,0.0009,8273
+H partial,0.5793,0.0826,0.039,0.5786,0.0862,0.0434,0.0007,-0.0036,-0.0044,1538
+H delayed,0.2925,0.2337,0.1481,0.29,0.22,0.1456,0.0025,0.0137,0.0026,783

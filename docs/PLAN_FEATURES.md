@@ -17,7 +17,7 @@
 | **0** | **Extensions du harnais** (vue passée à la fabrique, seuils fournis par l'estimateur, cache, `run_baseline`) | KAN-61 (suite) | ✅ fait (25/11) |
 | **1** | **Bloc texte** `features/text.py` | KAN-17 (B.2) | ✅ fait (25/11) |
 | **2** | **Baselines v0.0 (repères, raccourcis) et v0.1 (TF-IDF + LR calibrée)** | KAN-20 (B.5) | ✅ fait (26/11), hors sections du rapport |
-| **3** | **Blocs structure, nom d'outil, provenance, indices d'injection** | KAN-18 (B.3) | à faire |
+| **3** | **Blocs structure, nom d'outil, provenance, indices d'injection** | KAN-18 (B.3) | ✅ fait (26/11), sans l'option cohérence |
 | **4** | **Test de H1** (texte / structure / les deux, CV et domaine exclu) | KAN-62 (B.7) | à faire |
 | **5** | **AutoML v0.2** (CV imbriquée, Optuna) | KAN-21 (B.6) | à faire |
 | **6** | **Test de H3** (échelle d'ablation) | KAN-19 (B.4) | à faire |
@@ -190,7 +190,9 @@ Les raccourcis sont étiquetés `shortcut` partout et ne sont jamais sélectionn
 - une entrée dans le JOURNAL ;
 - la comparaison prudente avec les repères publiés de CONTEXT §5 (protocole différent).
 
-## Étape 3 — Blocs non textuels (KAN-18, B.3)
+## Étape 3 — Blocs non textuels (KAN-18, B.3) ✅ fait le 26/11
+
+Implémenté : `StructureBlock`, `ToolNameBlock`, `ProvenanceBlock`, `InjectionCuesBlock`, branchés par `TunedTextLogReg(blocks=…)` ; contrôle `pipelines/run_blocks_check.py` (provenance ≤ 0,5 point de l'EDA ; deux raccourcis de position retirés : `has_past_result` et le remplissage « none » des n-grammes) ; 16 tests. Option cohérence non faite (ajustement croisé groupé nécessaire). Premier passage : les blocs seuls font moins bien que le texte et ne généralisent pas mieux (JOURNAL 26/11) ; tableau formel à l'étape 4.
 
 Fichiers `features/structural.py` et `features/provenance.py` : des transformeurs scikit-learn.
 

@@ -34,10 +34,12 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import FunctionTransformer, OneHotEncoder
+from sklearn.pipeline import FeatureUnion, Pipeline
+from sklearn.preprocessing import FunctionTransformer, MaxAbsScaler, OneHotEncoder
 from sklearn.utils.validation import check_is_fitted
 
+from agentdrift.features.provenance import InjectionCuesBlock, ProvenanceBlock
+from agentdrift.features.structural import StructureBlock, ToolNameBlock
 from agentdrift.features.text import PLACEHOLDER, TextBlock
 
 # Fields that hold the text the agent has just read (scanner) or is about to act on (gate). The history is left out
@@ -168,6 +170,34 @@ def tfidf_logreg(view: str, memory: str | None = None, C: float = 1.0, class_wei
                      ("clf", LogisticRegression(C=C, class_weight=class_weight, max_iter=max_iter))], memory=memory)
 
 
+BLOCKS = ("text", "structure", "tool_name", "provenance", "cues")
+
+
+def feature_union(view: str, blocks: tuple[str, ...], text: dict | None = None) -> FeatureUnion:
+    """The requested blocks side by side. Non-text blocks are scaled by MaxAbsScaler (fitted in the fold, keeps the
+    sparsity and the 0 / 1 indicators); the TF-IDF rows are already L2-normalised per field."""
+    unknown = set(blocks) - set(BLOCKS)
+    if unknown or not blocks:
+        raise ValueError(f"blocks must be a non-empty subset of {BLOCKS}, got {blocks}")
+    if "provenance" in blocks and view != "gate":
+        raise ValueError("the provenance block exists for the gate view only")
+    make = {"text": lambda: TextBlock(view=view, **(text or {})),
+            "structure": lambda: Pipeline([("b", StructureBlock(view)), ("scale", MaxAbsScaler())]),
+            "tool_name": lambda: ToolNameBlock(view),
+            "provenance": lambda: Pipeline([("b", ProvenanceBlock(view)), ("scale", MaxAbsScaler())]),
+            "cues": lambda: Pipeline([("b", InjectionCuesBlock(view)), ("scale", MaxAbsScaler())])}
+    return FeatureUnion([(b, make[b]()) for b in blocks])
+
+
+def blocks_logreg(view: str, blocks: tuple[str, ...], memory: str | None = None, C: float = 1.0,
+                  class_weight: str | None = "balanced", max_iter: int = 2000, text: dict | None = None) -> Pipeline:
+    """Feature blocks + logistic regression. `blocks == ("text",)` is exactly `tfidf_logreg` (v0.1 unchanged)."""
+    if tuple(blocks) == ("text",):
+        return tfidf_logreg(view, memory, C, class_weight, max_iter, text)
+    return Pipeline([("features", feature_union(view, tuple(blocks), text)),
+                     ("clf", LogisticRegression(C=C, class_weight=class_weight, max_iter=max_iter))], memory=memory)
+
+
 class TunedTextLogReg(ClassifierMixin, BaseEstimator):
     """v0.1: text block + logistic regression, C tuned and the scores calibrated, all on the INNER splits.
 
@@ -195,7 +225,8 @@ class TunedTextLogReg(ClassifierMixin, BaseEstimator):
 
     def __init__(self, view: str | None = None, memory: str | None = None, inner_cv=None,
                  Cs: tuple[float, ...] = (0.1, 0.3, 1.0, 3.0, 10.0), class_weight: str | None = "balanced",
-                 calibration: str = "sigmoid", max_iter: int = 2000, text: dict | None = None):
+                 calibration: str = "sigmoid", max_iter: int = 2000, text: dict | None = None,
+                 blocks: tuple[str, ...] = ("text",)):
         self.view = view
         self.memory = memory
         self.inner_cv = inner_cv
@@ -204,9 +235,10 @@ class TunedTextLogReg(ClassifierMixin, BaseEstimator):
         self.calibration = calibration
         self.max_iter = max_iter
         self.text = text
+        self.blocks = blocks
 
     def _pipeline(self, C: float) -> Pipeline:
-        return tfidf_logreg(self.view, self.memory, C, self.class_weight, self.max_iter, self.text)
+        return blocks_logreg(self.view, tuple(self.blocks), self.memory, C, self.class_weight, self.max_iter, self.text)
 
     def _calibrate(self, raw: np.ndarray) -> np.ndarray:
         if self.calibration == "none":
@@ -254,19 +286,25 @@ class TunedTextLogReg(ClassifierMixin, BaseEstimator):
 
 def tuned_text_logreg(view: str, inner_cv, memory: str | None = None, Cs: tuple[float, ...] = (0.1, 0.3, 1.0, 3.0, 10.0),
                       class_weight: str | None = "balanced", calibration: str = "sigmoid", max_iter: int = 2000,
-                      text: dict | None = None) -> TunedTextLogReg:
-    return TunedTextLogReg(view, memory, inner_cv, tuple(Cs), class_weight, calibration, max_iter, text)
+                      text: dict | None = None, blocks: tuple[str, ...] = ("text",)) -> TunedTextLogReg:
+    return TunedTextLogReg(view, memory, inner_cv, tuple(Cs), class_weight, calibration, max_iter, text,
+                           tuple(blocks))
 
 
 def top_coefficients(model: TunedTextLogReg | Pipeline, k: int = 30) -> pd.DataFrame:
     """The k most positive and k most negative coefficients of each field (`<field>__<kind>__<token>`), to be read
     BY HAND for residual shortcuts (position tokens, generator tics, suspicious placeholders)."""
     pipe = model.model_ if isinstance(model, TunedTextLogReg) else model
-    names = pipe.named_steps["text"].get_feature_names_out()
+    step = "text" if "text" in pipe.named_steps else "features"
+    names = pd.Series(pipe.named_steps[step].get_feature_names_out()).str.replace(r"^text__", "", regex=True)
     coef = pipe.named_steps["clf"].coef_[0]
     df = pd.DataFrame({"feature": names, "coef": coef})
-    parts = df["feature"].str.split("__", n=2, expand=True)
-    df["field"], df["kind"], df["token"] = parts[0], parts[1], parts[2]
+    # text: <field>__<word|char>__<token>; other blocks: <block>__<block>__<name> (FeatureUnion prefix + own prefix)
+    parts = df["feature"].str.split("__", n=2, expand=True).reindex(columns=[0, 1, 2])
+    text_rows = parts[1].isin(["word", "char"])
+    df["field"] = parts[0]
+    df["kind"] = np.where(text_rows, parts[1], "block")
+    df["token"] = np.where(text_rows, parts[2], parts[2].fillna(parts[1]))
     pos = df.sort_values("coef", ascending=False).groupby("field").head(k).assign(sign="+")
     neg = df.sort_values("coef").groupby("field").head(k).assign(sign="-")
     return pd.concat([pos, neg]).sort_values(["field", "sign", "coef"], ascending=[True, True, False])[

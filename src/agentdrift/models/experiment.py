@@ -507,6 +507,16 @@ def run_view(cfg: ExperimentConfig, data: Dataset, cache_dir: Path | str | None 
     return oof, metrics
 
 
+def _tool_risk_status() -> str | None:
+    """Status of configs/annotations/tool_risk.yaml (draft | validated): runs using the structure block are to be
+    rerun once it is validated (KAN-58)."""
+    try:
+        from agentdrift.features.structural import tool_risk_status
+        return tool_risk_status()
+    except Exception:  # noqa: BLE001 - the table is optional for text-only runs
+        return None
+
+
 def _git_hash() -> str:
     out = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"], capture_output=True, text=True)
     dirty = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
@@ -549,7 +559,8 @@ def run_experiment(cfg: ExperimentConfig, views: list[str] | None = None, out_ro
                 "evaluation": cfg.evaluation, "seed": cfg.seed,
                 "data": {"text": cfg.text, "include_thought": cfg.include_thought, "columns": list(data.X.columns),
                          "rows": int(len(data.y)), "positives": int(data.y.sum()), "prevalence": float(data.y.mean()),
-                         "templates": int(data.meta["template_id"].nunique()), **fingerprints},
+                         "templates": int(data.meta["template_id"].nunique()), **fingerprints,
+                         "tool_risk_status": _tool_risk_status()},
                 "config": asdict(cfg),
                 **metrics,
                 "run": run_info(time.perf_counter() - start),
