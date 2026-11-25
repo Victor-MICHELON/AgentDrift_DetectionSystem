@@ -697,3 +697,38 @@ def plot_learning_curve(lc: pd.DataFrame) -> plt.Figure:
                 y=1.10)
     fig.tight_layout()
     return fig
+
+
+def plot_h1(runs: pd.DataFrame, order: list[str]) -> plt.Figure:
+    """H1: each variant in distribution (5 folds by template) and in a left-out domain, joined by a segment whose
+    length is the generalisation loss. PR-AUC (top) moves with the prevalence of the left-out domain; ROC-AUC
+    (bottom) does not."""
+    views = [v for v in ("scanner", "gate") if v in set(runs["view"])]
+    labels = [l for l in order if l in set(runs["label"])]
+    fig, axes = plt.subplots(2, len(views), figsize=(7.5, 0.55 * len(labels) * 2 + 1.8), sharey=True)
+    axes = np.atleast_2d(axes).reshape(2, len(views))
+    colors = {"cv": SERIES[0], "lodo": SERIES[1]}
+    for j, view in enumerate(views):
+        for i, metric in enumerate(("pr_auc", "roc_auc")):
+            ax = axes[i, j]
+            d = runs[runs["view"] == view].set_index(["label", "mode"])
+            for y, lab in enumerate(labels[::-1]):
+                pts = {m: d.loc[(lab, m)] for m in ("cv", "lodo") if (lab, m) in d.index}
+                if len(pts) == 2:
+                    ax.plot([pts["cv"][metric], pts["lodo"][metric]], [y, y], color=MUTED, linewidth=2.5, zorder=1)
+                for m, r in pts.items():
+                    ax.errorbar(r[metric], y, xerr=[[r[metric] - r[f"{metric}_low"]], [r[f"{metric}_high"] - r[metric]]],
+                                fmt="o", markersize=5, color=colors[m], ecolor=colors[m], elinewidth=1, capsize=2,
+                                zorder=2)
+            ax.set_yticks(range(len(labels)), labels[::-1])
+            ax.set_xlim(0.2 if metric == "pr_auc" else 0.5, 1.0)
+            ax.grid(axis="y", visible=False)
+            ax.set_xlabel({"pr_auc": "PR-AUC", "roc_auc": "ROC-AUC"}[metric] + " (mean over splits, 95 % CI)")
+            if i == 0:
+                ax.set_title({"scanner": "Scanner (o_{t-1})", "gate": "Gate (a_t)"}[view], fontsize=9.5)
+    _legend_top(axes[0, 0], [plt.Line2D([], [], marker="o", color=colors["cv"], linestyle="none",
+                                        label="5 folds by template"),
+                             plt.Line2D([], [], marker="o", color=colors["lodo"], linestyle="none",
+                                        label="leave one domain out")], y=1.12)
+    fig.tight_layout()
+    return fig

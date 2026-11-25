@@ -183,3 +183,69 @@ def test_blocks_through_the_harness_and_coefficients():
     top = B.top_coefficients(m, k=3)
     assert set(top["field"]) == {"structure", "provenance"} and (top["kind"] == "block").all()
     assert top.loc[top["field"] == "provenance", "token"].str.len().gt(0).all()
+
+
+# ----------------------------------------------------------------------------- H1: position control, loss differences
+
+
+def test_position_block_needs_the_step_and_is_never_with_text():
+    from agentdrift.features.structural import PositionBlock
+    f = PositionBlock("gate").frame(pd.DataFrame({"step": [0, 3, 12]}))
+    assert f.shape == (3, 9) and f.iloc[2]["position__t8"] == 1 and f.to_numpy().sum() == 3
+    with pytest.raises(ValueError, match="step index"):
+        PositionBlock("gate").fit(pd.DataFrame({"task": ["x"]}))
+    with pytest.raises(ValueError, match="position control"):
+        B.feature_union("gate", ("text", "position"))
+
+
+def _oofs():
+    from tests.test_experiment import cfg, toy
+    df, folds = toy()
+    out = {}
+    for mode in ("cv", "lodo"):
+        c = cfg(evaluation=mode, threshold_source="train")
+        out[mode] = E.run_view(c, E.make_dataset(df, "gate", c, folds))[0]
+    return out
+
+
+def test_paired_loss_difference_of_a_model_with_itself_is_zero_and_antisymmetric():
+    o = _oofs()
+    d = E.paired_loss_difference(o["cv"], o["lodo"], o["cv"], o["lodo"], [0.01], 100, 42)
+    for m, v in d.items():
+        assert v["point"] == 0 and v["low"] == 0 and v["high"] == 0, m
+    rng = np.random.default_rng(0)
+    worse_cv = o["cv"].assign(score=rng.random(len(o["cv"])))  # good in cv only: a large loss
+    d = E.paired_loss_difference(worse_cv, o["lodo"], o["cv"], o["lodo"], [0.01], 200, 42)
+    assert d["pr_auc"]["loss_a"] > 0 and d["pr_auc"]["point"] > 0 and d["pr_auc"]["low"] > 0
+    r = E.paired_loss_difference(o["cv"], o["lodo"], worse_cv, o["lodo"], [0.01], 200, 42)
+    assert r["pr_auc"]["point"] == pytest.approx(-d["pr_auc"]["point"])
+    # the point estimate is the mean over splits, as the harness's headline estimate
+    assert d["pr_auc"]["loss_b"] == pytest.approx(
+        E.estimate_with_ci(o["lodo"], [0.01], 10, 1)["pr_auc"]["point"] - E.estimate_with_ci(o["cv"], [0.01], 10, 1)[
+            "pr_auc"]["point"])
+    with pytest.raises(ValueError, match="same rows"):
+        E.paired_loss_difference(o["cv"].iloc[:-1], o["lodo"], o["cv"], o["lodo"], [0.01], 10, 42)
+
+
+def test_h1_variants_change_only_the_blocks():
+    from agentdrift.config import CONFIGS
+    from agentdrift.pipelines import run_h1 as H
+    base = E.ExperimentConfig.from_yaml(CONFIGS / "models" / "v0_1_baseline.yaml")
+    c = H.config_of(base, "struct", "gate", "lodo")
+    assert c.model["params"]["blocks"] == ["structure", "provenance"] and c.evaluation == "lodo"
+    assert c.model["params"]["Cs"] == base.model["params"]["Cs"] and c.threshold_source == base.threshold_source
+    assert H.config_of(base, "struct", "scanner", "cv").model["params"]["blocks"] == ["structure"]
+    pos = H.config_of(base, "struct_position", "gate", "cv")
+    assert pos.kind == "shortcut" and pos.uses_position
+    assert "text" in H.config_of(base, "text_struct", "gate", "cv").model["params"]["blocks"]
+    assert base.model["params"].get("blocks") is None  # the official config is not mutated
+
+
+def test_plot_h1_draws():
+    from agentdrift.viz import plots as P
+    rows = [{"label": l, "view": v, "mode": m, "pr_auc": x, "pr_auc_low": x - .01, "pr_auc_high": x + .01,
+             "roc_auc": x, "roc_auc_low": x - .01, "roc_auc_high": x + .01}
+            for l in ("a", "b") for v in ("scanner", "gate") for m, x in (("cv", .9), ("lodo", .8))]
+    P.plot_h1(pd.DataFrame(rows), ["a", "b"])
+    import matplotlib.pyplot as plt
+    plt.close("all")

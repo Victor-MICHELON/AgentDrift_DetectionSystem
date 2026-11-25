@@ -18,7 +18,7 @@
 | **1** | **Bloc texte** `features/text.py` | KAN-17 (B.2) | ✅ fait (25/11) |
 | **2** | **Baselines v0.0 (repères, raccourcis) et v0.1 (TF-IDF + LR calibrée)** | KAN-20 (B.5) | ✅ fait (26/11), hors sections du rapport |
 | **3** | **Blocs structure, nom d'outil, provenance, indices d'injection** | KAN-18 (B.3) | ✅ fait (26/11), sans l'option cohérence |
-| **4** | **Test de H1** (texte / structure / les deux, CV et domaine exclu) | KAN-62 (B.7) | à faire |
+| **4** | **Test de H1** (texte / structure / les deux, CV et domaine exclu) | KAN-62 (B.7) | ✅ fait (26/11) : H1 non soutenue |
 | **5** | **AutoML v0.2** (CV imbriquée, Optuna) | KAN-21 (B.6) | à faire |
 | **6** | **Test de H3** (échelle d'ablation) | KAN-19 (B.4) | à faire |
 | ∥ | Sections B du rapport, gouvernance, `CONTRIBUTIONS.md` | KAN-41, KAN-49 | au fil de l'eau |
@@ -225,7 +225,9 @@ Fichiers `features/structural.py` et `features/provenance.py` : des transformeur
 - aucune statistique calculée sur la validation ;
 - un historique tronqué donne une provenance « inconnue », pas « nulle part ».
 
-## Étape 4 — Test de H1 (KAN-62, B.7)
+## Étape 4 — Test de H1 (KAN-62, B.7) ✅ fait le 26/11
+
+Implémenté : `pipelines/run_h1.py` (6 variantes dont deux contrôles, position et nom d'outil), `experiment.paired_loss_difference`, bloc de contrôle `position`, figure `b_h1_generalisation`, diagnostic de rappel au même FPR. **Conclusion (JOURNAL 26/11) : H1 non soutenue** (portail : perte de ROC-AUC −0,059 pour la structure contre −0,019 pour le texte ; scanner : structure sans signal). **Complémentarité** : texte + structure aide le portail hors domaine sur les attaques retardées (0,175 → 0,366 au même FPR), pas le scanner. Transfert de seuil : FPR observé 0,2–0,3 % au lieu de 1 % hors domaine, à reprendre par D.5.
 
 Même estimateur pour toutes les variantes (la régression logistique de v0.1, même grille de C) : seul l'effet des variables est isolé.
 

@@ -39,7 +39,7 @@ from sklearn.preprocessing import FunctionTransformer, MaxAbsScaler, OneHotEncod
 from sklearn.utils.validation import check_is_fitted
 
 from agentdrift.features.provenance import InjectionCuesBlock, ProvenanceBlock
-from agentdrift.features.structural import StructureBlock, ToolNameBlock
+from agentdrift.features.structural import PositionBlock, StructureBlock, ToolNameBlock
 from agentdrift.features.text import PLACEHOLDER, TextBlock
 
 # Fields that hold the text the agent has just read (scanner) or is about to act on (gate). The history is left out
@@ -170,7 +170,7 @@ def tfidf_logreg(view: str, memory: str | None = None, C: float = 1.0, class_wei
                      ("clf", LogisticRegression(C=C, class_weight=class_weight, max_iter=max_iter))], memory=memory)
 
 
-BLOCKS = ("text", "structure", "tool_name", "provenance", "cues")
+BLOCKS = ("text", "structure", "tool_name", "provenance", "cues", "position")  # position: control of H1 only
 
 
 def feature_union(view: str, blocks: tuple[str, ...], text: dict | None = None) -> FeatureUnion:
@@ -185,7 +185,10 @@ def feature_union(view: str, blocks: tuple[str, ...], text: dict | None = None) 
             "structure": lambda: Pipeline([("b", StructureBlock(view)), ("scale", MaxAbsScaler())]),
             "tool_name": lambda: ToolNameBlock(view),
             "provenance": lambda: Pipeline([("b", ProvenanceBlock(view)), ("scale", MaxAbsScaler())]),
-            "cues": lambda: Pipeline([("b", InjectionCuesBlock(view)), ("scale", MaxAbsScaler())])}
+            "cues": lambda: Pipeline([("b", InjectionCuesBlock(view)), ("scale", MaxAbsScaler())]),
+            "position": lambda: PositionBlock(view)}
+    if "position" in blocks and "text" in blocks:
+        raise ValueError("the position control is not combined with the text block (it refuses non-text columns)")
     return FeatureUnion([(b, make[b]()) for b in blocks])
 
 

@@ -189,3 +189,21 @@ class ToolNameBlock(TransformerMixin, BaseEstimator):
     def get_feature_names_out(self, input_features=None) -> np.ndarray:
         check_is_fitted(self, "tools_")
         return np.asarray([f"tool_name__{t}" for t in self.tools_], dtype=object)
+
+
+class PositionBlock(_RowBlock):
+    """CONTROL ONLY: the step index t as indicators (t >= 8 pooled). Needs the `step` column, which the harness gives
+    only to a `kind: shortcut` config with `uses_position: true`. Used to measure how much of a block is position."""
+
+    prefix = "position__"
+    MAX_T = 8
+
+    def __init__(self, view: str | None = None):
+        self.view = view
+
+    def _frame(self, X: pd.DataFrame) -> pd.DataFrame:
+        if "step" not in X.columns:
+            raise ValueError("the position block needs the step index: `uses_position: true` and `kind: shortcut`")
+        t = X["step"].astype(int).clip(upper=self.MAX_T).to_numpy()
+        return pd.DataFrame((t[:, None] == np.arange(self.MAX_T + 1)).astype(float), index=X.index,
+                            columns=[f"t{k}" for k in range(self.MAX_T + 1)])

@@ -399,6 +399,51 @@ def paired_difference(oof_a: pd.DataFrame, oof_b: pd.DataFrame, targets: list[fl
             for m in ra.columns}
 
 
+def _template_weighted_metrics(oof: pd.DataFrame, weights: pd.DataFrame, targets: list[float]) -> pd.DataFrame:
+    """Per-split metrics under template weights (rows: resamples, columns: templates), averaged over the splits."""
+    names = [_target_name(f) for f in targets]
+    per_split = []
+    for _, d in oof.groupby("split", sort=True):
+        c = bucket_counts(d["score"], d["label"], d["template_id"])
+        thr = {n: float(d[f"thr@{n}"].iloc[0]) for n in names}
+        w = weights.reindex(columns=c.clusters).to_numpy()
+        per_split.append(pd.DataFrame(metrics_from_counts(w @ c.pos, w @ c.neg, c.scores, thr)))
+    return sum(per_split) / len(per_split)
+
+
+def paired_loss_difference(cv_a: pd.DataFrame, out_a: pd.DataFrame, cv_b: pd.DataFrame, out_b: pd.DataFrame,
+                           targets: list[float], n_resamples: int, seed: int) -> dict:
+    """Generalisation loss of two models and the difference of their losses, with ONE template bootstrap shared by the
+    four runs: {metric: {loss_a, loss_b, point, low, high}}, loss = out-of-distribution metric - in-distribution one,
+    point = loss_a - loss_b (H1: is the loss of a smaller than the loss of b?).
+
+    `cv_*` and `out_*` are the out-of-fold predictions of the same model under two evaluation modes (e.g. 5 folds by
+    template and leave one domain out). Every development template is evaluated once in each mode, so one draw of
+    template multiplicities (multinomial over all templates, NOT stratified: the strata differ between the modes)
+    weights the four runs at once. The point estimate (weights 1) is the mean over splits of each run, as `estimate`.
+    The two models must hold the same rows in each mode."""
+    for x, y in ((cv_a, cv_b), (out_a, out_b)):
+        a, b = x.sort_values(OOF_KEYS, ignore_index=True), y.sort_values(OOF_KEYS, ignore_index=True)
+        if len(a) != len(b) or not all(a[k].astype(str).equals(b[k].astype(str)) for k in OOF_KEYS):
+            raise ValueError("the two models do not hold the same rows in one evaluation mode: cannot pair them")
+    templates = sorted(set(cv_a["template_id"].astype(str)) | set(out_a["template_id"].astype(str)))
+    rng = np.random.default_rng(seed)
+    draws = rng.multinomial(len(templates), np.full(len(templates), 1 / len(templates)), size=n_resamples)
+    w = pd.DataFrame(draws, columns=templates)
+    ones = pd.DataFrame(np.ones((1, len(templates))), columns=templates)
+    runs = {"cv_a": cv_a, "out_a": out_a, "cv_b": cv_b, "out_b": out_b}
+    point = {k: _template_weighted_metrics(v, ones, targets).iloc[0] for k, v in runs.items()}
+    res = {k: _template_weighted_metrics(v, w, targets) for k, v in runs.items()}
+    diff = (res["out_a"] - res["cv_a"]) - (res["out_b"] - res["cv_b"])
+    ci = interval(diff)
+    out = {}
+    for m in diff.columns:
+        la, lb = point["out_a"][m] - point["cv_a"][m], point["out_b"][m] - point["cv_b"][m]
+        out[m] = {"loss_a": float(la), "loss_b": float(lb), "point": float(la - lb),
+                  "low": float(ci.loc[m, "low"]), "high": float(ci.loc[m, "high"])}
+    return out
+
+
 def pooled_oof(oof: pd.DataFrame, targets: list[float]) -> dict:
     """Diagnostic only: metrics of all out-of-fold rows pooled into one ranking (mixes the scales of the split
     models; recall / FPR use per-row alerts, which do not mix scales)."""
