@@ -16,7 +16,7 @@
 | — | Harnais d'expérience + run v0.0 majoritaire | KAN-61 (B.0) | ✅ fait (23/11) |
 | **0** | **Extensions du harnais** (vue passée à la fabrique, seuils fournis par l'estimateur, cache, `run_baseline`) | KAN-61 (suite) | ✅ fait (25/11) |
 | **1** | **Bloc texte** `features/text.py` | KAN-17 (B.2) | ✅ fait (25/11) |
-| **2** | **Baselines v0.0 (repères, raccourcis) et v0.1 (TF-IDF + LR calibrée)** | KAN-20 (B.5) | à faire |
+| **2** | **Baselines v0.0 (repères, raccourcis) et v0.1 (TF-IDF + LR calibrée)** | KAN-20 (B.5) | ✅ fait (26/11), hors sections du rapport |
 | **3** | **Blocs structure, nom d'outil, provenance, indices d'injection** | KAN-18 (B.3) | à faire |
 | **4** | **Test de H1** (texte / structure / les deux, CV et domaine exclu) | KAN-62 (B.7) | à faire |
 | **5** | **AutoML v0.2** (CV imbriquée, Optuna) | KAN-21 (B.6) | à faire |
@@ -143,7 +143,9 @@ Fichier `features/text.py`, fabrique de transformeur `text_block(view, fields=No
 
 **Fini quand :** bloc utilisable par une ligne de YAML, et dimension et temps par pli notés dans le JOURNAL.
 
-## Étape 2 — Baselines v0.0 et v0.1 (KAN-20, B.5)
+## Étape 2 — Baselines v0.0 et v0.1 (KAN-20, B.5) ✅ fait le 26/11
+
+Implémenté : v0.0 `random`, `position`, `style` (forme seule, ajoutée le 25/11), `keyword` (règle a priori : la règle de l'article n'est pas reconstructible) ; v0.1 `TunedTextLogReg` (C sur plis internes, Platt sur scores hors pli internes, seuils `estimator`) ; Brier / ECE dans `evaluation/metrics.py` (à relire par D) ; harnais : Brier / ECE par pli, `selected_`, `train_fraction` ; étude `pipelines/run_v01_study.py` (calibration, seuils, champs, action seule, courbes d'apprentissage, coefficients) ; 4 figures `b_v0*` ; 20 tests. Résultats et lecture des coefficients : JOURNAL du 26/11. Reste : sections du rapport (KAN-41), grille de C élargie, correction de l'anonymiseur (module A).
 
 ### v0.0 : repères à battre (`models/baselines.py`, `kind: trivial | shortcut`)
 

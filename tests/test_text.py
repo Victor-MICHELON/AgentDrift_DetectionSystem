@@ -163,3 +163,12 @@ def test_usable_from_a_config_through_the_harness():
         data = E.make_dataset(df, "gate", c, folds)
         _, met = E.run_view(c, data)
         assert met["estimate"]["pr_auc"]["point"] > met["estimate"]["prevalence"]["point"] + 0.2
+
+
+def test_a_field_without_any_token_gives_an_empty_block_not_an_error():
+    X = gate_rows().assign(proposed_call_args="{}")
+    block = TextBlock(view="gate", min_df=1)
+    out = block.fit_transform(X)
+    assert block.empty_fields_ == ["proposed_call_args__word"]
+    assert block.vocabulary_sizes()["proposed_call_args__word"] == 0
+    assert out.shape[1] == len(block.get_feature_names_out()) == block.transform(X).shape[1]

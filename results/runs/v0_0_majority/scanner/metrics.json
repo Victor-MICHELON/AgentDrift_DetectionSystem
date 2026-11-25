@@ -19,7 +19,7 @@
     "positives": 6043,
     "prevalence": 0.119867,
     "templates": 215,
-    "folds_hash": "c3280867a91eb31f",
+    "folds_hash": "f69d2d09f08332a9",
     "folds_hash_lf": "f69d2d09f08332a9"
   },
   "config": {
@@ -48,7 +48,8 @@
       "n_resamples": 2000,
       "seed": 42
     },
-    "seed": 42
+    "seed": 42,
+    "train_fraction": 1.0
   },
   "folds": [
     {
@@ -57,6 +58,7 @@
       "n_eval": 10028,
       "positives_eval": 1206,
       "templates_eval": 43,
+      "templates_train": 172,
       "roc_auc": 0.5,
       "pr_auc": 0.120263,
       "prevalence": 0.120263,
@@ -64,6 +66,8 @@
       "fpr@fpr0.01": 0.0,
       "recall@fpr0.002": 0.0,
       "fpr@fpr0.002": 0.0,
+      "brier": 0.1058,
+      "ece": 0.000494,
       "train_roc_auc": 0.5,
       "train_pr_auc": 0.119769,
       "gap_pr_auc": -0.000494,
@@ -75,7 +79,8 @@
         "fpr0.01": 0.0,
         "fpr0.002": 0.0
       },
-      "seconds": 0.45
+      "selected": null,
+      "seconds": 0.42
     },
     {
       "split": "cv1",
@@ -83,6 +88,7 @@
       "n_eval": 10093,
       "positives_eval": 1216,
       "templates_eval": 44,
+      "templates_train": 171,
       "roc_auc": 0.5,
       "pr_auc": 0.12048,
       "prevalence": 0.12048,
@@ -90,6 +96,8 @@
       "fpr@fpr0.01": 0.0,
       "recall@fpr0.002": 0.0,
       "fpr@fpr0.002": 0.0,
+      "brier": 0.105965,
+      "ece": 0.000765,
       "train_roc_auc": 0.5,
       "train_pr_auc": 0.119714,
       "gap_pr_auc": -0.000765,
@@ -101,7 +109,8 @@
         "fpr0.01": 0.0,
         "fpr0.002": 0.0
       },
-      "seconds": 0.63
+      "selected": null,
+      "seconds": 0.18
     },
     {
       "split": "cv2",
@@ -109,6 +118,7 @@
       "n_eval": 9981,
       "positives_eval": 1209,
       "templates_eval": 42,
+      "templates_train": 173,
       "roc_auc": 0.5,
       "pr_auc": 0.12113,
       "prevalence": 0.12113,
@@ -116,6 +126,8 @@
       "fpr@fpr0.01": 0.0,
       "recall@fpr0.002": 0.0,
       "fpr@fpr0.002": 0.0,
+      "brier": 0.10646,
+      "ece": 0.001574,
       "train_roc_auc": 0.5,
       "train_pr_auc": 0.119556,
       "gap_pr_auc": -0.001574,
@@ -127,7 +139,8 @@
         "fpr0.01": 0.0,
         "fpr0.002": 0.0
       },
-      "seconds": 1.55
+      "selected": null,
+      "seconds": 0.22
     },
     {
       "split": "cv3",
@@ -135,6 +148,7 @@
       "n_eval": 10350,
       "positives_eval": 1226,
       "templates_eval": 45,
+      "templates_train": 170,
       "roc_auc": 0.5,
       "pr_auc": 0.118454,
       "prevalence": 0.118454,
@@ -142,6 +156,8 @@
       "fpr@fpr0.01": 0.0,
       "recall@fpr0.002": 0.0,
       "fpr@fpr0.002": 0.0,
+      "brier": 0.104426,
+      "ece": 0.001779,
       "train_roc_auc": 0.5,
       "train_pr_auc": 0.120233,
       "gap_pr_auc": 0.001779,
@@ -153,7 +169,8 @@
         "fpr0.01": 0.0,
         "fpr0.002": 0.0
       },
-      "seconds": 0.72
+      "selected": null,
+      "seconds": 0.18
     },
     {
       "split": "cv4",
@@ -161,6 +178,7 @@
       "n_eval": 9962,
       "positives_eval": 1186,
       "templates_eval": 41,
+      "templates_train": 174,
       "roc_auc": 0.5,
       "pr_auc": 0.119052,
       "prevalence": 0.119052,
@@ -168,6 +186,8 @@
       "fpr@fpr0.01": 0.0,
       "recall@fpr0.002": 0.0,
       "fpr@fpr0.002": 0.0,
+      "brier": 0.10488,
+      "ece": 0.001016,
       "train_roc_auc": 0.5,
       "train_pr_auc": 0.120068,
       "gap_pr_auc": 0.001016,
@@ -179,7 +199,8 @@
         "fpr0.01": 0.0,
         "fpr0.002": 0.0
       },
-      "seconds": 0.62
+      "selected": null,
+      "seconds": 0.17
     }
   ],
   "fold_summary": {
@@ -214,6 +235,14 @@
     "gap_pr_auc": {
       "mean": -8e-06,
       "std": 0.00137
+    },
+    "brier": {
+      "mean": 0.105506,
+      "std": 0.000832
+    },
+    "ece": {
+      "mean": 0.001126,
+      "std": 0.00054
     }
   },
   "estimate": {
@@ -364,9 +393,9 @@
     }
   },
   "run": {
-    "date": "2026-11-23T17:18:59+00:00",
-    "git": "e5956cf",
-    "python": "3.12.10",
+    "date": "2026-11-25T18:37:10+00:00",
+    "git": "8b9fc2c-dirty",
+    "python": "3.12.14",
     "libraries": {
       "numpy": "2.5.5",
       "pandas": "3.1.1",
@@ -375,6 +404,6 @@
       "imblearn": "0.14.2",
       "optuna": "5.1.0"
     },
-    "seconds": 4.2
+    "seconds": 1.3
   }
 }

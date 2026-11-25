@@ -28,11 +28,14 @@ Design (PLAN_FEATURES step 1):
     weights     per-field multipliers (`{"history_text": 0.5}`), applied after the TF-IDF normalisation.
     svd         `text_block(..., svd=k)` appends a TruncatedSVD for dense models (k-NN of the AutoML).
 
-Missing text (none in AgentDrift; possible in ATBench) is read as an empty string. Nothing here reads a label.
+Missing text (none in AgentDrift; possible in ATBench) is read as an empty string. A field with no token at all in the
+training rows (e.g. arguments that are always `{}`) gives an empty block (0 columns, listed in `empty_fields_`), not
+an error: its absence of signal is a fact of these rows. Nothing here reads a label.
 """
 
 from __future__ import annotations
 
+import logging
 import re
 import zlib
 
@@ -46,6 +49,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_is_fitted
 
 from agentdrift.features.views import VIEWS, feature_columns
+
+log = logging.getLogger(__name__)
 
 ANALYZERS = ("word", "char", "both")
 # Anonymisation / masking placeholders (upper case, digits, underscores) and history tags / markers (lower case,
@@ -178,11 +183,21 @@ class TextBlock(TransformerMixin, BaseEstimator):
     def fit_transform(self, X: pd.DataFrame, y=None, **fit_params):
         fields = self._fields(X)
         kinds = ("word", "char") if self.analyzer == "both" else (self.analyzer,)
-        self.vectorizers_, blocks = [], []
+        self.vectorizers_, self.empty_fields_, blocks = [], [], []
         for field in fields:
             for kind in kinds:
                 vec = self._vectorizer(kind)
-                blocks.append(vec.fit_transform(self._column(X, field)) * float((self.weights or {}).get(field, 1.0)))
+                try:
+                    block = vec.fit_transform(self._column(X, field))
+                except ValueError as err:  # "empty vocabulary" / "After pruning, no terms remain"
+                    if "vocabulary" not in str(err) and "no terms remain" not in str(err):
+                        raise
+                    log.warning("field %s (%s) has no token in these training rows: empty block", field, kind)
+                    self.empty_fields_.append(f"{field}__{kind}")
+                    blocks.append(sp.csr_matrix((len(X), 0), dtype=np.float32))
+                    self.vectorizers_.append((field, kind, None))
+                    continue
+                blocks.append(block * float((self.weights or {}).get(field, 1.0)))
                 self.vectorizers_.append((field, kind, vec))
         self.fields_ = fields
         self.n_features_out_ = int(sum(b.shape[1] for b in blocks))
@@ -193,19 +208,20 @@ class TextBlock(TransformerMixin, BaseEstimator):
         missing = sorted(set(self.fields_) - set(X.columns))
         if missing:
             raise ValueError(f"fields {missing} seen at fit time are missing from X")
-        blocks = [vec.transform(self._column(X, field)) * float((self.weights or {}).get(field, 1.0))
+        blocks = [sp.csr_matrix((len(X), 0), dtype=np.float32) if vec is None
+                  else vec.transform(self._column(X, field)) * float((self.weights or {}).get(field, 1.0))
                   for field, _, vec in self.vectorizers_]
         return sp.hstack(blocks, format="csr", dtype=np.float32)
 
     def get_feature_names_out(self, input_features=None) -> np.ndarray:
         check_is_fitted(self, "vectorizers_")
-        return np.concatenate([[f"{field}__{kind}__{t}" for t in vec.get_feature_names_out()]
-                               for field, kind, vec in self.vectorizers_])
+        return np.concatenate([[f"{field}__{kind}__{t}" for t in vec.get_feature_names_out()] if vec is not None
+                               else np.array([], dtype=object) for field, kind, vec in self.vectorizers_])
 
     def vocabulary_sizes(self) -> dict[str, int]:
         """Dimension of each (field, analyser) block, for the JOURNAL and the report."""
         check_is_fitted(self, "vectorizers_")
-        return {f"{field}__{kind}": len(vec.vocabulary_) for field, kind, vec in self.vectorizers_}
+        return {f"{field}__{kind}": 0 if vec is None else len(vec.vocabulary_) for field, kind, vec in self.vectorizers_}
 
 
 def text_block(view: str, svd: int | None = None, seed: int = 42, **params) -> TextBlock | Pipeline:

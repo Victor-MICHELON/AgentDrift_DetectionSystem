@@ -1,0 +1,23 @@
+# v0.1 — official baseline (Step 2.3, KAN-20): TF-IDF per field (words 1-2) + logistic regression class_weight
+# "balanced", C tuned on the inner splits (mean PR-AUC), scores calibrated on the inner out-of-fold scores.
+# Calibration choice and its justification: JOURNAL 25/11 (study `python -m agentdrift.pipelines.run_v01_study`).
+version: v0_1_baseline
+kind: model
+description: TF-IDF words per field + logistic regression (balanced), C tuned and Platt-calibrated on inner splits.
+views: [scanner, gate]
+text: anon
+include_thought: false
+columns: null
+uses_position: false
+evaluation: cv
+model:
+  factory: agentdrift.models.baselines:tuned_text_logreg
+  params:
+    Cs: [0.1, 0.3, 1.0, 3.0, 10.0]
+    class_weight: balanced
+    calibration: sigmoid
+    text: {analyzer: word, word_ngram: [1, 2], min_df: 2}
+threshold_source: estimator
+target_fpr: [0.01, 0.002]
+bootstrap: {n_resamples: 2000, seed: 42}
+seed: 42

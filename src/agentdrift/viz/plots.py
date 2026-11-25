@@ -578,3 +578,122 @@ def plot_interval_widths(summaries: dict, metrics: list[str]) -> plt.Figure:
     leg = [Patch(facecolor=WIDTH_COLORS[c], label=WIDTH_LABELS[c]) for c in cols]
     _figure_header(fig, "Expected 95% interval widths (metadata-only reference score, dev folds)", leg)
     return fig
+
+
+# ----------------------------------------------------------------------------- Lot B: baselines and v0.1 study
+
+VIEW_TITLES = {"scanner": "Scanner (reads the tool response o_{t-1})", "gate": "Gate (reads the proposed call a_t)"}
+
+
+def _ci_bars(ax, labels, point, low, high, color, ref=None, ref_label=None, fmt="{:.3f}"):
+    y = np.arange(len(labels))
+    ax.barh(y, point, color=color, height=0.55)
+    ax.errorbar(point, y, xerr=[np.asarray(point) - np.asarray(low), np.asarray(high) - np.asarray(point)],
+                fmt="none", ecolor=INK_2, elinewidth=1, capsize=2)
+    bar_colors = color if isinstance(color, (list, tuple)) else [color] * len(labels)
+    for yi, v, c in zip(y, point, bar_colors):
+        # high values at the START of the bar, ink chosen for its colour: the CI and the markers sit at its end
+        inside = v > 0.6
+        ax.text(0.02 if inside else v + 0.03, yi, fmt.format(v), va="center", ha="left", fontsize=8,
+                color=_ink_on(to_rgb(c)) if inside else INK_2, fontweight="bold" if inside else "normal")
+    if ref is not None:
+        ax.axvline(ref, color=INK_3, linewidth=1, linestyle=(0, (3, 3)))
+        if ref_label:
+            ax.text(ref + 0.01, -0.75, ref_label, color=INK_3, fontsize=7.5, va="center")
+    ax.set_yticks(y, labels)
+    ax.set_ylim(-1.0, len(labels) - 0.5)
+    ax.set_xlim(0, 1.05)
+    ax.grid(axis="y", visible=False)
+
+
+def plot_baselines(table: pd.DataFrame, metric: str = "pr_auc") -> plt.Figure:
+    """One panel per view: each version's mean over the 5 folds with its 95 % template-bootstrap CI (CV), and its
+    leave-one-domain-out value as a dot."""
+    views = [v for v in ("scanner", "gate") if v in set(table["view"])]
+    fig, axes = plt.subplots(1, len(views), figsize=(7.5, 0.42 * table["version"].nunique() + 1.4), sharey=True)
+    axes = np.atleast_1d(axes)
+    for ax, view in zip(axes, views):
+        cv = table[(table["view"] == view) & (table["evaluation"] == "cv")].iloc[::-1]
+        lodo = table[(table["view"] == view) & (table["evaluation"] == "lodo")].set_index("version")
+        colors = [SERIES[1] if k == "shortcut" else SERIES[0] if k == "model" else MUTED for k in cv["kind"]]
+        _ci_bars(ax, list(cv["version"]), cv[metric], cv[f"{metric}_low"], cv[f"{metric}_high"], colors,
+                 ref=float(cv["prevalence"].iloc[0]) if metric == "pr_auc" else 0.5,
+                 ref_label="prevalence" if metric == "pr_auc" else "chance")
+        if len(lodo):
+            y = np.arange(len(cv))
+            vals = [lodo[metric].get(v, np.nan) for v in cv["version"]]
+            ax.scatter(vals, y, marker="D", s=18, color=INK, zorder=3, label="leave one domain out")
+        ax.set_title(VIEW_TITLES[view], fontsize=9.5)
+        ax.set_xlabel({"pr_auc": "PR-AUC", "roc_auc": "ROC-AUC"}.get(metric, metric) + " (mean of 5 folds, 95 % CI)")
+    handles = [Patch(facecolor=MUTED, label="trivial"), Patch(facecolor=SERIES[1], label="shortcut"),
+               Patch(facecolor=SERIES[0], label="model")]
+    if (table["evaluation"] == "lodo").any():
+        handles.append(plt.Line2D([], [], marker="D", color=INK, linestyle="none", markersize=4,
+                                  label="leave one domain out"))
+    _legend_top(axes[0], handles, y=1.10)
+    fig.tight_layout()
+    return fig
+
+
+def plot_reliability(rel: pd.DataFrame) -> plt.Figure:
+    """Reliability diagram (equal-mass bins) of each calibration variant, one panel per view."""
+    views = [v for v in ("scanner", "gate") if v in set(rel["view"])]
+    variants = list(dict.fromkeys(rel["variant"]))
+    colors = dict(zip(variants, SERIES))
+    fig, axes = plt.subplots(1, len(views), figsize=(7.5, 3.4), sharey=True)
+    axes = np.atleast_1d(axes)
+    for ax, view in zip(axes, views):
+        ax.plot([0, 1], [0, 1], color=INK_3, linewidth=1, linestyle=(0, (3, 3)))
+        for v in variants:
+            d = rel[(rel["view"] == view) & (rel["variant"] == v)]
+            ax.plot(d["mean_prob"], d["observed"], marker="o", markersize=3.5, color=colors[v], label=v)
+        ax.set_xlim(0, 1), ax.set_ylim(0, 1)
+        ax.set_xlabel("mean predicted probability (bin)")
+        ax.set_title(VIEW_TITLES[view], fontsize=9.5)
+    axes[0].set_ylabel("observed rate of positives")
+    _legend_top(axes[0], [plt.Line2D([], [], color=colors[v], marker="o", markersize=3.5, label=v) for v in variants],
+                y=1.10)
+    fig.tight_layout()
+    return fig
+
+
+def plot_field_ablation(fields: pd.DataFrame) -> plt.Figure:
+    """PR-AUC of v0.1 restricted to one field (or the gate's action-only variant), against all fields."""
+    views = [v for v in ("scanner", "gate") if v in set(fields["view"])]
+    n = max((fields["view"] == v).sum() for v in views)
+    fig, axes = plt.subplots(1, len(views), figsize=(7.5, 0.4 * n + 1.3))
+    axes = np.atleast_1d(axes)
+    for ax, view in zip(axes, views):
+        d = fields[fields["view"] == view].iloc[::-1]
+        colors = [SERIES[0] if f == "all fields" else SERIES[2] if f == "action only" else MUTED for f in d["fields"]]
+        _ci_bars(ax, list(d["fields"]), d["pr_auc"], d["pr_auc_low"], d["pr_auc_high"], colors,
+                 ref=float(d["prevalence"].iloc[0]), ref_label="prevalence")
+        ax.set_title(VIEW_TITLES[view], fontsize=9.5)
+        ax.set_xlabel("PR-AUC (mean of 5 folds, 95 % CI)")
+    fig.tight_layout()
+    return fig
+
+
+def plot_learning_curve(lc: pd.DataFrame) -> plt.Figure:
+    """PR-AUC on the evaluated folds (CI band) and on the training rows, against the share of training templates."""
+    views = [v for v in ("scanner", "gate") if v in set(lc["view"])]
+    fig, axes = plt.subplots(1, len(views), figsize=(7.5, 3.0), sharey=True)
+    axes = np.atleast_1d(axes)
+    for ax, view in zip(axes, views):
+        d = lc[lc["view"] == view].sort_values("train_fraction")
+        x = d["train_fraction"] * 100
+        ax.fill_between(x, d["pr_auc_low"], d["pr_auc_high"], color=_lighten(SERIES[0], 0.7), linewidth=0)
+        ax.plot(x, d["pr_auc"], marker="o", markersize=3.5, color=SERIES[0], label="evaluated folds")
+        ax.plot(x, d["train_pr_auc"], marker="o", markersize=3.5, color=SERIES[1], linestyle=(0, (4, 2)),
+                label="training rows")
+        ax.set_xscale("log")
+        ax.set_xticks(x, [f"{v:g} %" for v in x])
+        ax.minorticks_off()
+        ax.set_xlabel("share of the training templates")
+        ax.set_title(VIEW_TITLES[view], fontsize=9.5)
+    axes[0].set_ylabel("PR-AUC")
+    _legend_top(axes[0], [plt.Line2D([], [], color=SERIES[0], marker="o", label="evaluated folds (95 % CI)"),
+                          plt.Line2D([], [], color=SERIES[1], marker="o", linestyle=(0, (4, 2)), label="training rows")],
+                y=1.10)
+    fig.tight_layout()
+    return fig

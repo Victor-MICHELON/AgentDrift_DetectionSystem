@@ -1,0 +1,17 @@
+# v0.0 — uniform random scores (KAN-20): control of the bootstrap and of the metric code (ROC-AUC 0.5 on average).
+version: v0_0_random
+kind: trivial
+description: Uniform random scores, seeded; expected ROC-AUC 0.5, PR-AUC = prevalence.
+views: [scanner, gate]
+text: anon
+include_thought: false
+columns: null
+uses_position: false
+evaluation: cv
+model:
+  factory: agentdrift.models.baselines:random_scores
+  params: {seed: 42}
+threshold_source: inner_oof
+target_fpr: [0.01, 0.002]
+bootstrap: {n_resamples: 2000, seed: 42}
+seed: 42

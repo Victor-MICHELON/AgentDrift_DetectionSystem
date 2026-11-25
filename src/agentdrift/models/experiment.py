@@ -19,6 +19,7 @@ A version is ONE YAML file (configs/models/), read by `ExperimentConfig.from_yam
     target_fpr: [0.01, 0.002]       # per-step FPR operating points (configs/split.yaml)
     bootstrap: {n_resamples: 2000, seed: 42}
     seed: 42
+    train_fraction: 1.0             # < 1: learning curve, a random share of the TRAINING templates of each split
 
 Contract of the loop, for each outer split (k, train rows, evaluated rows):
 
@@ -54,6 +55,11 @@ Outputs per view (and evaluation mode):
                   templates stratified by split (`split_resamples`, paired across models); train / evaluation gap;
                   recall by attack type and alert rate by negative class, joined AFTER prediction for analysis only.
 
+Per split, when the scores are probabilities (all in [0, 1]): Brier score and ECE (10 equal-mass bins,
+`evaluation/metrics.py`); `None` otherwise (a decision function is not a probability). When the fitted estimator
+exposes `selected_` (e.g. the C chosen on the inner splits), it is written with its split: if the splits choose
+different hyperparameters, metrics.json shows it.
+
 `pooled_oof` (diagnostic only) ranks all out-of-fold rows together: that mixes the score scales of five models
 and is biased (a constant model gets a pooled ROC-AUC of 0.41 on the toy test, AI_AUDIT). The headline is `estimate`.
 """
@@ -82,6 +88,7 @@ from sklearn.base import clone
 
 from agentdrift.config import ROOT, RUNS, load_config
 from agentdrift.evaluation.bootstrap import bucket_counts, interval, metrics_from_counts, point_estimate
+from agentdrift.evaluation.metrics import calibration_metrics, is_probability
 from agentdrift.features.views import (
     FORBIDDEN_FIELDS, NON_FEATURE_COLUMNS, TEXT_VARIANTS, VIEWS, feature_columns, read_view,
 )
@@ -122,6 +129,7 @@ class ExperimentConfig:
     bootstrap: dict = field(default_factory=lambda: {"n_resamples": load_config("split")["bootstrap"]["n_resamples"],
                                                       "seed": 42})
     seed: int = 42
+    train_fraction: float = 1.0
 
     def __post_init__(self) -> None:
         checks = [
@@ -132,6 +140,7 @@ class ExperimentConfig:
             (set(self.views) <= set(VIEWS) and self.views, f"views must be a non-empty subset of {VIEWS}"),
             ("factory" in self.model, "model.factory is required ('module:function')"),
             (all(0 < f < 1 for f in self.target_fpr), "target_fpr values must be in (0, 1)"),
+            (0 < self.train_fraction <= 1, "train_fraction must be in (0, 1]"),
             (not self.uses_position or self.kind == "shortcut",
              "only a kind: shortcut may read the step index (uses_position: true)"),
         ]
@@ -433,25 +442,41 @@ def fold_summary(folds: list[dict], keys: list[str]) -> dict:
 # ----------------------------------------------------------------------------- run
 
 
+def subsample_templates(meta: pd.DataFrame, train: np.ndarray, fraction: float, seed: int) -> np.ndarray:
+    """Training positions restricted to a random `fraction` of the training templates (at least 2): learning curves.
+    Whole templates are kept or dropped, so the inner splits stay grouped; the evaluated rows never change."""
+    if fraction >= 1:
+        return train
+    tpl = meta["template_id"].to_numpy()[train]
+    uniq = np.unique(tpl)
+    keep = np.random.default_rng(seed).choice(uniq, size=max(2, int(round(fraction * len(uniq)))), replace=False)
+    return train[np.isin(tpl, keep)]
+
+
 def run_view(cfg: ExperimentConfig, data: Dataset, cache_dir: Path | str | None = None) -> tuple[pd.DataFrame, dict]:
     """Out-of-fold predictions and metrics of one view under the config's evaluation mode."""
     set_seed(cfg.seed)
     names = [_target_name(f) for f in cfg.target_fpr]
     parts, folds = [], []
-    for split, train, ev in outer(data.meta, cfg.evaluation):
+    for i, (split, train, ev) in enumerate(outer(data.meta, cfg.evaluation)):
         start = time.perf_counter()
+        train = subsample_templates(data.meta, train, cfg.train_fraction, cfg.seed + i)
         est, ref = fit_fold(cfg, data, train, cfg.seed, cache_dir)
         thr = {n: threshold_at_fpr(ref[data.y[train] == 0], f) for n, f in zip(names, cfg.target_fpr)}
         s_ev = score(est, data.X.iloc[ev])
         s_tr = score(est, data.X.iloc[train])
         m_ev = point_estimate(s_ev, data.y[ev], thresholds=thr)
         m_tr = point_estimate(s_tr, data.y[train])
+        calib = (calibration_metrics(s_ev, data.y[ev]) if is_probability(s_ev)
+                 else {"brier": None, "ece": None})
         folds.append({
             "split": split, "n_train": int(len(train)), "n_eval": int(len(ev)),
             "positives_eval": int(data.y[ev].sum()), "templates_eval": int(data.meta["template_id"].iloc[ev].nunique()),
-            **m_ev, "train_roc_auc": m_tr["roc_auc"], "train_pr_auc": m_tr["pr_auc"],
+            "templates_train": int(data.meta["template_id"].iloc[train].nunique()),
+            **m_ev, **calib, "train_roc_auc": m_tr["roc_auc"], "train_pr_auc": m_tr["pr_auc"],
             "gap_pr_auc": m_tr["pr_auc"] - m_ev["pr_auc"],
             "thresholds": thr, "reference_fpr": {n: float(np.mean(ref[data.y[train] == 0] > thr[n])) for n in names},
+            "selected": getattr(est, "selected_", None),
             "seconds": round(time.perf_counter() - start, 2),
         })
         m = data.meta.iloc[ev]
@@ -471,7 +496,7 @@ def run_view(cfg: ExperimentConfig, data: Dataset, cache_dir: Path | str | None 
     src = data.meta.set_index(["trajectory_id", "step"])["source_category"]
     source = src.reindex(pd.MultiIndex.from_frame(oof[["trajectory_id", "step"]])).reset_index(drop=True)
     keys = ["roc_auc", "pr_auc", *[f"{p}@{n}" for n in names for p in ("recall", "fpr")],
-            "train_pr_auc", "gap_pr_auc"]
+            "train_pr_auc", "gap_pr_auc", "brier", "ece"]
     metrics = {
         "folds": folds,
         "fold_summary": fold_summary(folds, keys),
