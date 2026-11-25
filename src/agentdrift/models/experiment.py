@@ -15,7 +15,7 @@ A version is ONE YAML file (configs/models/), read by `ExperimentConfig.from_yam
     model:
       factory: agentdrift.models.baselines:majority    # "module:function" returning an sklearn estimator
       params: {}
-    threshold_source: inner_oof     # inner_oof | train (see below)
+    threshold_source: inner_oof     # inner_oof | train | estimator (see below)
     target_fpr: [0.01, 0.002]       # per-step FPR operating points (configs/split.yaml)
     bootstrap: {n_resamples: 2000, seed: 42}
     seed: 42
@@ -29,7 +29,16 @@ Contract of the loop, for each outer split (k, train rows, evaluated rows):
                 evaluated rows (L5). `inner_oof` (default): out-of-fold scores of the training part over its inner
                 splits, an honest estimate of how unseen negatives score. `train`: in-sample scores of the fitted
                 model, cheaper but optimistic (a model that memorises its negatives gets a threshold that is too low,
-                hence an observed FPR above target); kept for cheap baselines only.
+                hence an observed FPR above target); kept for cheap baselines only. `estimator`: the fitted estimator
+                exposes `inner_oof_scores_`, one out-of-fold score per training row computed over ITS OWN `inner_cv`
+                (a tuned / AutoML model already ran those fits: refitting 3 more times per outer split would triple
+                the cost). The harness checks the shape and finiteness, not how the scores were obtained: that is the
+                factory's duty, with a test. The scores belong to the configuration chosen ON those inner splits, so
+                they are slightly optimistic: compare once against `inner_oof` before relying on them.
+    factory     arguments a factory may declare, each passed by the harness: `inner_cv` (inner splits of its training
+                rows), `view` ("scanner" | "gate": which fields the model reads) and `memory` (a per-run cache
+                directory for `Pipeline(memory=...)`, so that a vectoriser fitted with the same parameters on the same
+                rows is computed once; None when the run has no cache).
     inputs      the matrix X holds only feature columns of the view (`check_columns`): keys, labels, groups,
                 diagnostics and generator metadata (NON_FEATURE_COLUMNS, FORBIDDEN_FIELDS) are refused; the step
                 index t only for a declared shortcut (L3, L12). The fixed test set is never read: `read_view` hides
@@ -58,6 +67,7 @@ import json
 import logging
 import platform
 import subprocess
+import tempfile
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass, field
@@ -82,7 +92,7 @@ log = logging.getLogger(__name__)
 
 KINDS = ("trivial", "shortcut", "model")
 EVALUATIONS = ("cv", "lodo", "world_fold")
-THRESHOLD_SOURCES = ("inner_oof", "train")
+THRESHOLD_SOURCES = ("inner_oof", "train", "estimator")
 POSITION_COLUMN = "step"
 # Per-row metadata kept next to X for splitting, bootstrap and subgroup analysis. NEVER model inputs.
 META_COLUMNS = ("trajectory_id", "step", "label", "domain", "template_id", "source_category", "fold", "world_fold")
@@ -150,17 +160,29 @@ def resolve_factory(spec: str) -> Callable[..., Any]:
     return getattr(importlib.import_module(module), name)
 
 
+def declared_arguments(cfg: ExperimentConfig) -> set[str]:
+    """Names of the arguments the model factory declares (`inner_cv`, `view`, `memory` are filled by the harness)."""
+    return set(inspect.signature(resolve_factory(cfg.model["factory"])).parameters)
+
+
 def needs_inner_cv(cfg: ExperimentConfig) -> bool:
-    return "inner_cv" in inspect.signature(resolve_factory(cfg.model["factory"])).parameters
+    return "inner_cv" in declared_arguments(cfg)
 
 
-def make_estimator(cfg: ExperimentConfig, meta_train: pd.DataFrame, seed: int):
+def make_estimator(cfg: ExperimentConfig, meta_train: pd.DataFrame, seed: int, view: str | None = None,
+                   cache_dir: Path | str | None = None):
     """A fresh, unfitted estimator for these training rows. A factory that declares `inner_cv` receives the inner
-    splits of exactly these rows (positions relative to them); the others never trigger their computation."""
+    splits of exactly these rows (positions relative to them); the others never trigger their computation. One that
+    declares `view` receives the view being run, one that declares `memory` the run's cache directory (or None)."""
     factory = resolve_factory(cfg.model["factory"])
     params = dict(cfg.model.get("params") or {})
-    if needs_inner_cv(cfg):
+    declared = declared_arguments(cfg)
+    if "inner_cv" in declared:
         params["inner_cv"] = inner_cv(meta_train, seed)
+    if "view" in declared:
+        params["view"] = view
+    if "memory" in declared:
+        params["memory"] = None if cache_dir is None else str(cache_dir)
     return clone(factory(**params))
 
 
@@ -263,16 +285,26 @@ def threshold_at_fpr(negative_scores: np.ndarray, fpr: float) -> float:
     return float(s[min(int(np.floor(fpr * len(s))), len(s) - 1)])
 
 
-def fit_fold(cfg: ExperimentConfig, data: Dataset, train: np.ndarray, seed: int):
+def fit_fold(cfg: ExperimentConfig, data: Dataset, train: np.ndarray, seed: int, cache_dir: Path | str | None = None):
     """Fit on the training rows only; return (estimator, reference scores of the training part for thresholds)."""
     X_tr, y_tr, meta_tr = data.X.iloc[train], data.y[train], data.meta.iloc[train]
-    est = make_estimator(cfg, meta_tr, seed)
+    est = make_estimator(cfg, meta_tr, seed, data.view, cache_dir)
     est.fit(X_tr, y_tr)
     if cfg.threshold_source == "train":
         return est, score(est, X_tr)
+    if cfg.threshold_source == "estimator":
+        ref = getattr(est, "inner_oof_scores_", None)
+        if ref is None:
+            raise ValueError(f"threshold_source: estimator needs the fitted {type(est).__name__} to expose "
+                             "`inner_oof_scores_` (one out-of-fold score per training row)")
+        ref = np.asarray(ref, dtype=float)
+        if ref.shape != (len(train),) or not np.isfinite(ref).all():
+            raise ValueError(f"inner_oof_scores_ must hold one finite score per training row: expected "
+                             f"{len(train)}, got shape {ref.shape} with {int((~np.isfinite(ref)).sum())} non-finite")
+        return est, ref
     ref = np.full(len(train), np.nan)
     for itr, iva in inner_cv(meta_tr, seed):
-        e = make_estimator(cfg, meta_tr.iloc[itr], seed)
+        e = make_estimator(cfg, meta_tr.iloc[itr], seed, data.view, cache_dir)
         e.fit(X_tr.iloc[itr], y_tr[itr])
         ref[iva] = score(e, X_tr.iloc[iva])
     if np.isnan(ref).any():
@@ -335,6 +367,29 @@ def estimate_with_ci(oof: pd.DataFrame, targets: list[float], n_resamples: int, 
                 "nan_resamples": int(res[m].isna().sum())} for m in res.columns}
 
 
+OOF_KEYS = ["split", "trajectory_id", "step"]
+
+
+def paired_difference(oof_a: pd.DataFrame, oof_b: pd.DataFrame, targets: list[float], n_resamples: int, seed: int) -> dict:
+    """{metric: {point, low, high}} of `a - b`: both models evaluated on the same rows, the same template draws.
+
+    `split_resamples` depends only on the seed and on the templates of each split, so the resamples of the two runs
+    are the same and their difference is paired (a model compared with itself has an interval of exactly zero). The
+    two runs must hold the same rows, in the same splits: a different view, evaluation mode or text variant raises.
+    The interval is a percentile one on the resampled differences; it says whether a gap is larger than the template
+    sampling noise, not that the models differ on a new domain or on ATBench."""
+    a = oof_a.sort_values(OOF_KEYS, ignore_index=True)
+    b = oof_b.sort_values(OOF_KEYS, ignore_index=True)
+    same_rows = len(a) == len(b) and all(a[k].astype(str).equals(b[k].astype(str)) for k in OOF_KEYS)
+    if not same_rows or not a["label"].astype(int).equals(b["label"].astype(int)):
+        raise ValueError("the two runs do not hold the same rows / labels / splits: cannot pair them")
+    pa, ra = split_resamples(a, targets, n_resamples, seed)
+    pb, rb = split_resamples(b, targets, n_resamples, seed)
+    ci = interval(ra - rb)
+    return {m: {"point": float(pa[m] - pb[m]), "low": float(ci.loc[m, "low"]), "high": float(ci.loc[m, "high"])}
+            for m in ra.columns}
+
+
 def pooled_oof(oof: pd.DataFrame, targets: list[float]) -> dict:
     """Diagnostic only: metrics of all out-of-fold rows pooled into one ranking (mixes the scales of the split
     models; recall / FPR use per-row alerts, which do not mix scales)."""
@@ -378,14 +433,14 @@ def fold_summary(folds: list[dict], keys: list[str]) -> dict:
 # ----------------------------------------------------------------------------- run
 
 
-def run_view(cfg: ExperimentConfig, data: Dataset) -> tuple[pd.DataFrame, dict]:
+def run_view(cfg: ExperimentConfig, data: Dataset, cache_dir: Path | str | None = None) -> tuple[pd.DataFrame, dict]:
     """Out-of-fold predictions and metrics of one view under the config's evaluation mode."""
     set_seed(cfg.seed)
     names = [_target_name(f) for f in cfg.target_fpr]
     parts, folds = [], []
     for split, train, ev in outer(data.meta, cfg.evaluation):
         start = time.perf_counter()
-        est, ref = fit_fold(cfg, data, train, cfg.seed)
+        est, ref = fit_fold(cfg, data, train, cfg.seed, cache_dir)
         thr = {n: threshold_at_fpr(ref[data.y[train] == 0], f) for n, f in zip(names, cfg.target_fpr)}
         s_ev = score(est, data.X.iloc[ev])
         s_tr = score(est, data.X.iloc[train])
@@ -458,25 +513,27 @@ def run_experiment(cfg: ExperimentConfig, views: list[str] | None = None, out_ro
     folds = load_folds()
     fingerprints = folds_fingerprints(folds)
     results = {}
-    for view in views or cfg.views:
-        start = time.perf_counter()
-        data = load_dataset(view, cfg)
-        oof, metrics = run_view(cfg, data)
-        report = {
-            "version": cfg.version, "kind": cfg.kind, "description": cfg.description, "view": view,
-            "evaluation": cfg.evaluation, "seed": cfg.seed,
-            "data": {"text": cfg.text, "include_thought": cfg.include_thought, "columns": list(data.X.columns),
-                     "rows": int(len(data.y)), "positives": int(data.y.sum()), "prevalence": float(data.y.mean()),
-                     "templates": int(data.meta["template_id"].nunique()), **fingerprints},
-            "config": asdict(cfg),
-            **metrics,
-            "run": run_info(time.perf_counter() - start),
-        }
-        report = _clean(report)
-        if write:
-            out = cfg.output_dir(view, out_root)
-            out.mkdir(parents=True, exist_ok=True)
-            oof.to_parquet(out / "oof.parquet", index=False)
-            (out / "metrics.json").write_text(json.dumps(report, indent=2))
-        results[view] = report
+    # One cache directory per run, removed at the end: it only serves the repeated fits of one run.
+    with tempfile.TemporaryDirectory(prefix="agentdrift_cache_") as cache_dir:
+        for view in views or cfg.views:
+            start = time.perf_counter()
+            data = load_dataset(view, cfg)
+            oof, metrics = run_view(cfg, data, cache_dir)
+            report = {
+                "version": cfg.version, "kind": cfg.kind, "description": cfg.description, "view": view,
+                "evaluation": cfg.evaluation, "seed": cfg.seed,
+                "data": {"text": cfg.text, "include_thought": cfg.include_thought, "columns": list(data.X.columns),
+                         "rows": int(len(data.y)), "positives": int(data.y.sum()), "prevalence": float(data.y.mean()),
+                         "templates": int(data.meta["template_id"].nunique()), **fingerprints},
+                "config": asdict(cfg),
+                **metrics,
+                "run": run_info(time.perf_counter() - start),
+            }
+            report = _clean(report)
+            if write:
+                out = cfg.output_dir(view, out_root)
+                out.mkdir(parents=True, exist_ok=True)
+                oof.to_parquet(out / "oof.parquet", index=False)
+                (out / "metrics.json").write_text(json.dumps(report, indent=2))
+            results[view] = report
     return results

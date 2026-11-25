@@ -51,7 +51,7 @@ Notebooks: open `notebooks/*.ipynb` in VS Code and select the `.venv` interprete
 | Scanner / gate views (B.1, KAN-60): anonymised (default) + masked text, both `thought` variants | `python -m agentdrift.pipelines.build_views [--raw] [--atbench] [--include-test]` (≈ 4 min with `--raw --atbench`) → `data/processed/views/`, checks in `results/runs/views/summary.json`. `--raw`: raw-text views for the H3 ablation only; `--atbench`: ATBench views (raw text, team decision pending). Read with `features.views.read_view(view, include_thought=False, text="anon")` |
 | Any model version (harness, KAN-61): grouped CV, out-of-fold predictions, metrics with cluster-bootstrap CIs | `python -m agentdrift.pipelines.run_experiment --config configs/models/<version>.yaml [--views gate] [--evaluation cv\|lodo\|world_fold]` → `results/runs/<version>/<view>[_<evaluation>]/{metrics.json, oof.parquet}`. Contract in `src/agentdrift/models/experiment.py` |
 | v0.0 majority class (harness check) | `python -m agentdrift.pipelines.run_experiment --config configs/models/v0_0_majority.yaml` (≈ 10 s) |
-| v0.1 baseline | `python -m agentdrift.pipelines.run_baseline` |
+| Several versions side by side, with paired differences to a reference (B.5) | `python -m agentdrift.pipelines.run_baseline --name <table> --configs configs/models/<a>.yaml <b>.yaml --evaluations cv lodo [--reference <version>]` → `results/runs/comparisons/<table>.csv` (one row per version × view × evaluation, 95 % CI, paired difference to the reference) |
 
 More commands are added with each new pipeline.
 

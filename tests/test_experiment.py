@@ -96,7 +96,7 @@ def data():
 
 
 @pytest.mark.parametrize("evaluation", E.EVALUATIONS)
-@pytest.mark.parametrize("threshold_source", E.THRESHOLD_SOURCES)
+@pytest.mark.parametrize("threshold_source", ["inner_oof", "train"])  # `estimator`: tested below with its own spy
 def test_every_fit_sees_training_rows_only(data, evaluation, threshold_source):
     FITS.clear()
     c = cfg(evaluation=evaluation, threshold_source=threshold_source)
@@ -154,6 +154,136 @@ def test_a_factory_declaring_inner_cv_gets_splits_of_its_own_training_rows(data)
         for itr, iva in splits:  # positions relative to the rows this estimator is fitted on
             assert max(itr.max(), iva.max()) < len(fitted)
             assert not set(tpl[fitted[itr]]) & set(tpl[fitted[iva]])
+
+
+# ----------------------------------------------------------------------------- factory arguments filled by the harness
+
+SEEN: list[dict] = []
+
+
+class ArgSpy(Spy):
+    """Records the harness-filled arguments of its factory (`view`, `memory`)."""
+
+    def __init__(self, view=None, memory=None):
+        self.view, self.memory = view, memory
+
+    def fit(self, X, y):
+        SEEN.append({"view": self.view, "memory": self.memory})
+        return super().fit(X, y)
+
+
+def arg_spy(view=None, memory=None) -> ArgSpy:
+    return ArgSpy(view, memory)
+
+
+def test_a_factory_declaring_view_and_memory_receives_them(data, tmp_path):
+    SEEN.clear()
+    c = cfg(model={"factory": "tests.test_experiment:arg_spy"}, threshold_source="train")
+    E.run_view(c, data, cache_dir=tmp_path)
+    assert len(SEEN) == 5 and {s["view"] for s in SEEN} == {"gate"} and {s["memory"] for s in SEEN} == {str(tmp_path)}
+    SEEN.clear()
+    E.run_view(c, data)  # no cache requested: the factory gets None, never a stale directory
+    assert {s["memory"] for s in SEEN} == {None}
+
+
+def test_a_factory_declaring_nothing_receives_nothing_extra(data):
+    E.run_view(cfg(threshold_source="train"), data)  # `spy()` takes no argument: would raise on an unexpected one
+
+
+# ----------------------------------------------------------------------------- threshold_source: estimator
+
+FIT_ROWS: list[np.ndarray] = []
+
+
+class OofSpy(Spy):
+    """What a tuned model does: declares `inner_cv`, fits on its inner splits and exposes `inner_oof_scores_`."""
+
+    def __init__(self, inner_cv=None, mode="ok"):
+        self.inner_cv, self.mode = inner_cv, mode
+
+    def fit(self, X, y):
+        FIT_ROWS.append(np.asarray(X.index))
+        super().fit(X, y)
+        y = np.asarray(y)
+        oof = np.full(len(X), np.nan)
+        for itr, iva in self.inner_cv:
+            inner = Spy().fit(X.iloc[itr], y[itr])
+            oof[iva] = inner.predict_proba(X.iloc[iva])[:, 1]
+        if self.mode == "ok":
+            self.inner_oof_scores_ = oof
+        elif self.mode == "short":
+            self.inner_oof_scores_ = oof[:-1]
+        elif self.mode == "nan":
+            self.inner_oof_scores_ = np.where(np.arange(len(oof)) == 0, np.nan, oof)
+        return self  # mode == "missing": no attribute
+
+
+def oof_spy(inner_cv=None, mode="ok") -> OofSpy:
+    return OofSpy(inner_cv, mode)
+
+
+def test_estimator_source_uses_the_scores_of_the_estimator_and_fits_once_per_split(data):
+    FIT_ROWS.clear()
+    c = cfg(model={"factory": "tests.test_experiment:oof_spy"}, threshold_source="estimator")
+    oof, met = E.run_view(c, data)
+    splits = list(E.outer(data.meta, "cv"))
+    assert len(FIT_ROWS) == len(splits)  # no extra fits for the thresholds: the estimator did them itself
+    tpl = data.meta["template_id"].to_numpy()
+    for fitted, (_, train, ev) in zip(FIT_ROWS, splits):
+        assert set(fitted) <= set(train) and not set(tpl[fitted]) & set(tpl[ev])
+    # the thresholds are the ones of the TRAINING part's out-of-fold scores: same value as the default source on a
+    # model whose inner fits are the same
+    base, met_inner = E.run_view(cfg(model={"factory": "tests.test_experiment:inner_spy"}), data)
+    assert [f["thresholds"] for f in met["folds"]] == [f["thresholds"] for f in met_inner["folds"]]
+    pd.testing.assert_frame_equal(oof.drop(columns=["score"]), base.drop(columns=["score"]), check_exact=False)
+
+
+@pytest.mark.parametrize("mode, message", [("missing", "inner_oof_scores_"), ("short", "one finite score"),
+                                            ("nan", "one finite score")])
+def test_estimator_source_refuses_unusable_scores(data, mode, message):
+    c = cfg(model={"factory": "tests.test_experiment:oof_spy", "params": {"mode": mode}}, threshold_source="estimator")
+    with pytest.raises(ValueError, match=message):
+        E.run_view(c, data)
+
+
+def test_labels_of_the_evaluated_fold_never_reach_the_estimator_thresholds(data):
+    c = cfg(model={"factory": "tests.test_experiment:oof_spy"}, threshold_source="estimator")
+    _, met = E.run_view(c, data)
+    flipped = E.Dataset(data.view, data.X, data.y.copy(), data.meta, data.is_first_h)
+    in_fold0 = (data.meta["fold"] == 0).to_numpy()
+    flipped.y[in_fold0] = 1 - flipped.y[in_fold0]
+    _, met2 = E.run_view(c, flipped)
+    assert met["folds"][0]["thresholds"] == met2["folds"][0]["thresholds"]
+
+
+# ----------------------------------------------------------------------------- paired difference
+
+
+def test_paired_difference_of_a_run_with_itself_is_exactly_zero(data):
+    oof, _ = E.run_view(cfg(), data)
+    d = E.paired_difference(oof, oof, [0.01, 0.002], 100, 42)
+    for m, v in d.items():
+        assert v["point"] == 0 and v["low"] == 0 and v["high"] == 0, m
+
+
+def test_paired_difference_sees_a_better_model_and_ignores_row_order(data):
+    oof, _ = E.run_view(cfg(), data)
+    rng = np.random.default_rng(5)
+    worse = oof.assign(score=rng.random(len(oof)))  # random scores: PR-AUC near the prevalence
+    d = E.paired_difference(oof, worse.sample(frac=1, random_state=1), [0.01], 200, 42)
+    assert d["pr_auc"]["point"] > 0.1 and d["pr_auc"]["low"] > 0  # the signal model is clearly better
+    assert d["pr_auc"]["low"] <= d["pr_auc"]["point"] <= d["pr_auc"]["high"]
+    rev = E.paired_difference(worse, oof, [0.01], 200, 42)
+    assert rev["pr_auc"]["point"] == pytest.approx(-d["pr_auc"]["point"])
+
+
+def test_paired_difference_refuses_runs_that_do_not_hold_the_same_rows(data):
+    oof, _ = E.run_view(cfg(), data)
+    with pytest.raises(ValueError, match="same rows"):
+        E.paired_difference(oof, oof.iloc[:-1], [0.01], 50, 42)
+    other = oof.assign(label=1 - oof["label"])
+    with pytest.raises(ValueError, match="same rows"):
+        E.paired_difference(oof, other, [0.01], 50, 42)
 
 
 # ----------------------------------------------------------------------------- L5: evaluated labels never used
@@ -294,3 +424,34 @@ def test_majority_on_the_corpus():
         assert r["estimate"]["roc_auc"]["point"] == pytest.approx(0.5)
         assert r["estimate"]["pr_auc"]["point"] == pytest.approx(r["data"]["prevalence"], abs=0.01)
         assert len(r["folds"]) == 5
+
+
+# ----------------------------------------------------------------------------- comparison table (run_baseline)
+
+
+def test_comparison_table_has_headline_metrics_and_paired_differences(data):
+    from agentdrift.pipelines.run_baseline import comparison_rows
+
+    def report(version, oof, metrics, kind="model"):
+        return {"version": version, "kind": kind, "view": "gate", "evaluation": "cv",
+                "data": {"text": "anon", "rows": len(oof), "prevalence": float(oof["label"].mean())},
+                "config": {"target_fpr": [0.01, 0.002], "bootstrap": {"n_resamples": 50, "seed": 42}}, **metrics}
+
+    ref_oof, ref_met = E.run_view(cfg(model={"factory": "agentdrift.models.baselines:majority"}, kind="trivial"), data)
+    oof, met = E.run_view(cfg(), data)
+    table = comparison_rows([(report("ref", ref_oof, ref_met, "trivial"), ref_oof), (report("m", oof, met), oof)],
+                            "ref", {("gate", "cv"): ref_oof})
+    assert list(table["version"]) == ["ref", "m"]
+    assert {"pr_auc", "pr_auc_low", "pr_auc_high", "recall@fpr0.01", "fpr@fpr0.002"} <= set(table)
+    assert table.loc[0, ["delta_pr_auc"]].isna().all()  # the reference is not compared with itself
+    assert table.loc[1, "delta_pr_auc"] > 0 and table.loc[1, "delta_pr_auc_low"] > 0
+    assert table.loc[1, "delta_pr_auc"] == pytest.approx(table.loc[1, "pr_auc"] - table.loc[0, "pr_auc"])
+
+
+def test_comparison_without_reference_has_no_difference_columns(data):
+    from agentdrift.pipelines.run_baseline import comparison_rows
+    oof, met = E.run_view(cfg(), data)
+    rep = {"version": "m", "kind": "model", "view": "gate", "evaluation": "cv",
+           "data": {"text": "anon", "rows": len(oof), "prevalence": 0.1},
+           "config": {"target_fpr": [0.01, 0.002], "bootstrap": {"n_resamples": 50, "seed": 42}}, **met}
+    assert not [c for c in comparison_rows([(rep, oof)]).columns if c.startswith("delta_")]
