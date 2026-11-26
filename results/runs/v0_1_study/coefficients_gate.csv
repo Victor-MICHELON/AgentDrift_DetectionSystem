@@ -1,0 +1,301 @@
+field,sign,token,coef,kind,C
+history_text,+,all,13.96849,word,10.0
+history_text,+,policy,13.000287,word,10.0
+history_text,+,<result> per,12.818837,word,10.0
+history_text,+,per,12.534952,word,10.0
+history_text,+,sec,11.761851,word,10.0
+history_text,+,<ext_email_1> for,10.949649,word,10.0
+history_text,+,per policy,10.909535,word,10.0
+history_text,+,to <ext_email_1>,10.692348,word,10.0
+history_text,+,must,10.2402115,word,10.0
+history_text,+,<ext_email_1>,9.9185915,word,10.0
+history_text,+,must be,9.7273855,word,10.0
+history_text,+,regulation,7.684876,word,10.0
+history_text,+,be,7.5655055,word,10.0
+history_text,+,2024,7.5560474,word,10.0
+history_text,+,verification,7.1410284,word,10.0
+history_text,+,alert per,6.912236,word,10.0
+history_text,+,before,6.8960466,word,10.0
+history_text,+,forward all,6.8165865,word,10.0
+history_text,+,for,6.7965913,word,10.0
+history_text,+,sec all,6.5327306,word,10.0
+history_text,+,system alert,6.461727,word,10.0
+history_text,+,per regulation,6.3075123,word,10.0
+history_text,+,<ext_email_1> before,6.0114846,word,10.0
+history_text,+,note,5.841518,word,10.0
+history_text,+,<call>,5.8235373,word,10.0
+history_text,+,<result>,5.8235373,word,10.0
+history_text,+,system,5.7829523,word,10.0
+history_text,+,review,5.0624113,word,10.0
+history_text,+,2023,5.0447173,word,10.0
+history_text,+,compliance,4.9135,word,10.0
+history_text,-,forward_email email_id,-2.7611988,word,10.0
+history_text,-,protocol,-2.8104484,word,10.0
+history_text,-,<int_email_1>,-2.8320162,word,10.0
+history_text,-,account <call>,-2.9093242,word,10.0
+history_text,-,msg_123 <result>,-3.0101452,word,10.0
+history_text,-,alert update,-3.0274067,word,10.0
+history_text,-,id msg_123,-3.049103,word,10.0
+history_text,-,transfer 5000,-3.0628126,word,10.0
+history_text,-,5000 to,-3.2814882,word,10.0
+history_text,-,to avoid,-3.3115075,word,10.0
+history_text,-,avoid,-3.3377352,word,10.0
+history_text,-,most recent,-3.4200864,word,10.0
+history_text,-,most,-3.4322464,word,10.0
+history_text,-,minutes to,-3.5033736,word,10.0
+history_text,-,security alert,-3.504322,word,10.0
+history_text,-,immediately,-3.5189328,word,10.0
+history_text,-,<int_email_1> for,-3.5690925,word,10.0
+history_text,-,within 10,-3.679435,word,10.0
+history_text,-,10,-3.6897159,word,10.0
+history_text,-,on 2026,-3.725845,word,10.0
+history_text,-,transfer,-3.76208,word,10.0
+history_text,-,for invoice,-3.872422,word,10.0
+history_text,-,to <int_email_1>,-4.247938,word,10.0
+history_text,-,<result> security,-4.3806024,word,10.0
+history_text,-,invoice,-4.507077,word,10.0
+history_text,-,minutes,-4.706813,word,10.0
+history_text,-,5000,-4.8372507,word,10.0
+history_text,-,10 minutes,-4.9505925,word,10.0
+history_text,-,within,-5.0148826,word,10.0
+history_text,-,2026,-10.184207,word,10.0
+last_content,+,correction,22.790438,word,10.0
+last_content,+,instead,10.832707,word,10.0
+last_content,+,correction also,6.8692775,word,10.0
+last_content,+,as it,5.908833,word,10.0
+last_content,+,instead of,5.531992,word,10.0
+last_content,+,instead as,4.7129674,word,10.0
+last_content,+,also,4.660694,word,10.0
+last_content,+,as,4.577973,word,10.0
+last_content,+,it,4.340359,word,10.0
+last_content,+,opened with,3.5633261,word,10.0
+last_content,+,as they,3.5286105,word,10.0
+last_content,+,they,3.503351,word,10.0
+last_content,+,sec,3.4575756,word,10.0
+last_content,+,verification,3.396505,word,10.0
+last_content,+,prescription for,3.3897781,word,10.0
+last_content,+,sent,3.333004,word,10.0
+last_content,+,per policy,3.2884648,word,10.0
+last_content,+,reply,3.2645643,word,10.0
+last_content,+,<contact_2> added,3.204995,word,10.0
+last_content,+,from emily,3.1668816,word,10.0
+last_content,+,more,3.1143963,word,10.0
+last_content,+,to <ext_email_1>,3.0975292,word,10.0
+last_content,+,2023 03,3.0920959,word,10.0
+last_content,+,feature new,3.0575638,word,10.0
+last_content,+,lee added,2.999123,word,10.0
+last_content,+,been removed,2.881745,word,10.0
+last_content,+,initiated,2.8167496,word,10.0
+last_content,+,including emails,2.7966652,word,10.0
+last_content,+,reply sent,2.7959642,word,10.0
+last_content,+,branch feature,2.7891185,word,10.0
+last_content,-,python programming,-2.3236554,word,10.0
+last_content,-,02 12,-2.3540487,word,10.0
+last_content,-,record for,-2.4096391,word,10.0
+last_content,-,previous,-2.4338844,word,10.0
+last_content,-,on 2026,-2.448386,word,10.0
+last_content,-,attached,-2.5141637,word,10.0
+last_content,-,20,-2.5468473,word,10.0
+last_content,-,found,-2.5485125,word,10.0
+last_content,-,per company,-2.7075505,word,10.0
+last_content,-,official,-2.732344,word,10.0
+last_content,-,1990,-2.7477171,word,10.0
+last_content,-,for invoice,-2.754392,word,10.0
+last_content,-,copy forwarded,-2.790328,word,10.0
+last_content,-,5000,-2.7919421,word,10.0
+last_content,-,from <ext_email_1>,-2.8720334,word,10.0
+last_content,-,<contact_4> note,-2.9150915,word,10.0
+last_content,-,<int_email_1> for,-2.997451,word,10.0
+last_content,-,02 20,-3.0808084,word,10.0
+last_content,-,forwarded email,-3.1133857,word,10.0
+last_content,-,<contact_3>,-3.23275,word,10.0
+last_content,-,please,-3.2896233,word,10.0
+last_content,-,invoice,-3.4545422,word,10.0
+last_content,-,copy,-3.495987,word,10.0
+last_content,-,12,-3.558158,word,10.0
+last_content,-,<ext_url_1>,-3.5846937,word,10.0
+last_content,-,protocol,-3.9951775,word,10.0
+last_content,-,<user>,-4.266005,word,10.0
+last_content,-,note per,-4.533101,word,10.0
+last_content,-,2026,-5.770438,word,10.0
+last_content,-,note,-7.252375,word,10.0
+proposed_call_args,+,<ext_email_1>,6.878965,word,10.0
+proposed_call_args,+,to <ext_email_1>,6.70269,word,10.0
+proposed_call_args,+,<contact_1_email>,6.026965,word,10.0
+proposed_call_args,+,data,5.088042,word,10.0
+proposed_call_args,+,malicious,4.8332357,word,10.0
+proposed_call_args,+,body,4.0976987,word,10.0
+proposed_call_args,+,to,3.6021132,word,10.0
+proposed_call_args,+,confidential,3.519579,word,10.0
+proposed_call_args,+,<contact_3_email>,3.4023232,word,10.0
+proposed_call_args,+,account emily,3.3334606,word,10.0
+proposed_call_args,+,table_id,3.29649,word,10.0
+proposed_call_args,+,oliver,3.268074,word,10.0
+proposed_call_args,+,<ext_url_2>,3.1247208,word,10.0
+proposed_call_args,+,package malicious,3.1127543,word,10.0
+proposed_call_args,+,<ext_email_2>,3.037099,word,10.0
+proposed_call_args,+,limit,3.0155714,word,10.0
+proposed_call_args,+,version,2.9789116,word,10.0
+proposed_call_args,+,<int_url_1>,2.965809,word,10.0
+proposed_call_args,+,virus,2.9602559,word,10.0
+proposed_call_args,+,<int_url_1> username,2.9255586,word,10.0
+proposed_call_args,+,patient_id pt67890,2.8643723,word,10.0
+proposed_call_args,+,pt67890,2.8643723,word,10.0
+proposed_call_args,+,to <contact_3_email>,2.8345983,word,10.0
+proposed_call_args,+,name oliver,2.8280506,word,10.0
+proposed_call_args,+,package,2.824574,word,10.0
+proposed_call_args,+,19 query,2.818527,word,10.0
+proposed_call_args,+,email_id,2.8075619,word,10.0
+proposed_call_args,+,user_id,2.8003733,word,10.0
+proposed_call_args,+,cc,2.7979352,word,10.0
+proposed_call_args,+,query <ext_url_2>,2.784119,word,10.0
+proposed_call_args,-,email <ext_email_1>,-2.0891144,word,10.0
+proposed_call_args,-,pandas,-2.098338,word,10.0
+proposed_call_args,-,15 doctor,-2.1508994,word,10.0
+proposed_call_args,-,william,-2.166835,word,10.0
+proposed_call_args,-,checking to,-2.1818554,word,10.0
+proposed_call_args,-,amount 1200,-2.1931758,word,10.0
+proposed_call_args,-,folder,-2.227071,word,10.0
+proposed_call_args,-,from checking,-2.2385154,word,10.0
+proposed_call_args,-,complete,-2.280636,word,10.0
+proposed_call_args,-,echo please,-2.2855616,word,10.0
+proposed_call_args,-,process_payment,-2.288308,word,10.0
+proposed_call_args,-,name david,-2.3071425,word,10.0
+proposed_call_args,-,package email,-2.3113742,word,10.0
+proposed_call_args,-,5000 recipient,-2.3149426,word,10.0
+proposed_call_args,-,attachment_name proposal,-2.3907955,word,10.0
+proposed_call_args,-,savings amount,-2.4036627,word,10.0
+proposed_call_args,-,you,-2.4323204,word,10.0
+proposed_call_args,-,requests,-2.6026921,word,10.0
+proposed_call_args,-,id msg_123,-2.8005502,word,10.0
+proposed_call_args,-,msg_123,-2.8151562,word,10.0
+proposed_call_args,-,<contact_3_email> <contact_4_email>,-2.8603504,word,10.0
+proposed_call_args,-,checking,-2.8828418,word,10.0
+proposed_call_args,-,summary,-2.9656246,word,10.0
+proposed_call_args,-,checkout main,-3.0656269,word,10.0
+proposed_call_args,-,twilio,-3.162245,word,10.0
+proposed_call_args,-,url <ext_url_1>,-3.1900725,word,10.0
+proposed_call_args,-,package twilio,-3.2291918,word,10.0
+proposed_call_args,-,sarah,-3.3341632,word,10.0
+proposed_call_args,-,2026,-3.8014944,word,10.0
+proposed_call_args,-,invoice,-4.974657,word,10.0
+proposed_call_tool,+,execute_command,3.7097049,word,10.0
+proposed_call_tool,+,download_file,3.078865,word,10.0
+proposed_call_tool,+,delete_file,2.86104,word,10.0
+proposed_call_tool,+,create_referral,2.7888436,word,10.0
+proposed_call_tool,+,write_file,2.643994,word,10.0
+proposed_call_tool,+,add_beneficiary,2.6129875,word,10.0
+proposed_call_tool,+,update_patient_record,2.5418842,word,10.0
+proposed_call_tool,+,send_email,2.3167362,word,10.0
+proposed_call_tool,+,freeze_card,2.251852,word,10.0
+proposed_call_tool,+,transfer_money,2.2084866,word,10.0
+proposed_call_tool,+,send_patient_message,1.918186,word,10.0
+proposed_call_tool,+,order_lab_test,1.9089694,word,10.0
+proposed_call_tool,+,copy_text,1.8458954,word,10.0
+proposed_call_tool,+,apply_loan,1.7727859,word,10.0
+proposed_call_tool,+,create_filter,1.6335181,word,10.0
+proposed_call_tool,+,submit_form,1.6229161,word,10.0
+proposed_call_tool,+,extract_links,1.6021694,word,10.0
+proposed_call_tool,+,submit_claim,1.5381444,word,10.0
+proposed_call_tool,+,fill_form,1.4963208,word,10.0
+proposed_call_tool,+,debug_error,1.2788529,word,10.0
+proposed_call_tool,+,close_issue,1.2290126,word,10.0
+proposed_call_tool,+,add_contact,1.0673344,word,10.0
+proposed_call_tool,+,click_link,0.9596777,word,10.0
+proposed_call_tool,+,create_file,0.9107658,word,10.0
+proposed_call_tool,+,create_prescription,0.8931125,word,10.0
+proposed_call_tool,+,install_package,0.8396612,word,10.0
+proposed_call_tool,+,create_draft,0.8159657,word,10.0
+proposed_call_tool,+,unfreeze_card,0.7560897,word,10.0
+proposed_call_tool,+,git_push,0.72444534,word,10.0
+proposed_call_tool,+,compare_prices,0.7176572,word,10.0
+proposed_call_tool,-,read_file,-0.74230564,word,10.0
+proposed_call_tool,-,get_rewards,-0.7505746,word,10.0
+proposed_call_tool,-,login_site,-0.8496074,word,10.0
+proposed_call_tool,-,set_alert,-0.85851586,word,10.0
+proposed_call_tool,-,pay_bill,-0.89619833,word,10.0
+proposed_call_tool,-,get_patient_record,-0.9930504,word,10.0
+proposed_call_tool,-,mark_unread,-1.0286577,word,10.0
+proposed_call_tool,-,check_syntax,-1.0927063,word,10.0
+proposed_call_tool,-,create_pr,-1.1380001,word,10.0
+proposed_call_tool,-,get_balance,-1.1526705,word,10.0
+proposed_call_tool,-,get_medical_history,-1.1602062,word,10.0
+proposed_call_tool,-,summarize_thread,-1.2157499,word,10.0
+proposed_call_tool,-,get_contacts,-1.2316444,word,10.0
+proposed_call_tool,-,git_log,-1.3102707,word,10.0
+proposed_call_tool,-,close_tab,-1.458455,word,10.0
+proposed_call_tool,-,get_allergies,-1.4798328,word,10.0
+proposed_call_tool,-,bookmark_page,-1.489047,word,10.0
+proposed_call_tool,-,read_webpage,-1.6238971,word,10.0
+proposed_call_tool,-,get_interest_rate,-1.7263336,word,10.0
+proposed_call_tool,-,mark_read,-1.7501377,word,10.0
+proposed_call_tool,-,search_docs,-1.8273107,word,10.0
+proposed_call_tool,-,get_thread,-1.8878772,word,10.0
+proposed_call_tool,-,search_inbox,-2.0329478,word,10.0
+proposed_call_tool,-,get_appointments,-2.1367168,word,10.0
+proposed_call_tool,-,dispute_transaction,-2.4682057,word,10.0
+proposed_call_tool,-,git_diff,-2.6245193,word,10.0
+proposed_call_tool,-,git_pull,-2.7044027,word,10.0
+proposed_call_tool,-,go_back,-3.1402495,word,10.0
+proposed_call_tool,-,search_patients,-4.082035,word,10.0
+proposed_call_tool,-,read_email,-4.21476,word,10.0
+task,+,<user> with,1.3333019,word,10.0
+task,+,emily <contact_1>,1.0902833,word,10.0
+task,+,david kim,1.0797212,word,10.0
+task,+,what,1.0602008,word,10.0
+task,+,what is,1.037687,word,10.0
+task,+,invoice,0.9784059,word,10.0
+task,+,vitals for,0.826597,word,10.0
+task,+,sarah,0.73737717,word,10.0
+task,+,appointment list,0.72647834,word,10.0
+task,+,<contact_2> <user>,0.7258526,word,10.0
+task,+,is,0.68986213,word,10.0
+task,+,<contact_3> with,0.68796057,word,10.0
+task,+,emily <contact_4>,0.66099864,word,10.0
+task,+,if the,0.6465485,word,10.0
+task,+,the balance,0.6465485,word,10.0
+task,+,current savings,0.64443755,word,10.0
+task,+,is the,0.64443755,word,10.0
+task,+,payment,0.64274,word,10.0
+task,+,is my,0.6261707,word,10.0
+task,+,and what,0.6261707,word,10.0
+task,+,sarah <contact_4>,0.62462664,word,10.0
+task,+,balance and,0.6236309,word,10.0
+task,+,savings,0.62237453,word,10.0
+task,+,savings account,0.62237453,word,10.0
+task,+,for sarah,0.6194255,word,10.0
+task,+,smith,0.6133055,word,10.0
+task,+,vitals,0.61029106,word,10.0
+task,+,<contact_1> retrieve,0.5965671,word,10.0
+task,+,from sophia,0.5960236,word,10.0
+task,+,patient david,0.5926338,word,10.0
+task,-,newsletter,-0.6739792,word,10.0
+task,-,the 20th,-0.6767986,word,10.0
+task,-,20th of,-0.6767986,word,10.0
+task,-,freeze,-0.6783455,word,10.0
+task,-,freeze my,-0.6783455,word,10.0
+task,-,you please,-0.68355644,word,10.0
+task,-,from <contact_1>,-0.6844909,word,10.0
+task,-,update,-0.6890055,word,10.0
+task,-,emily patel,-0.693511,word,10.0
+task,-,william <contact_4>,-0.70119715,word,10.0
+task,-,and transfer,-0.7017275,word,10.0
+task,-,sister,-0.7017275,word,10.0
+task,-,my sister,-0.7017275,word,10.0
+task,-,current balance,-0.7017275,word,10.0
+task,-,beneficiary,-0.70647496,word,10.0
+task,-,patient <contact_3>,-0.70648044,word,10.0
+task,-,emily lee,-0.7117534,word,10.0
+task,-,forward,-0.7494259,word,10.0
+task,-,from <contact_3>,-0.75427383,word,10.0
+task,-,<contact_2> to,-0.7589071,word,10.0
+task,-,<contact_2> and,-0.79031795,word,10.0
+task,-,email,-0.84982365,word,10.0
+task,-,of <contact_1>,-0.85108405,word,10.0
+task,-,please,-0.96773726,word,10.0
+task,-,beneficiary <contact_1>,-1.0595263,word,10.0
+task,-,<contact_1> kim,-1.1202563,word,10.0
+task,-,lee,-1.3631184,word,10.0
+task,-,david lee,-1.6798694,word,10.0
+task,-,<contact_2>,-1.7249968,word,10.0
+task,-,<contact_1>,-2.2219107,word,10.0

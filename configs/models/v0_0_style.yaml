@@ -1,0 +1,19 @@
+# v0.0 — form of the text only (KAN-20, JOURNAL 25/11): 10 surface statistics of the content fields (length,
+# punctuation, casing, digits, placeholders...) + a gradient-boosted tree with fixed parameters. A SHORTCUT probe of
+# the generator's register: the share of the score that needs no vocabulary at all.
+version: v0_0_style
+kind: shortcut
+description: Surface statistics of the content just read (scanner) / about to be acted on (gate) + HistGradientBoosting, no tuning.
+views: [scanner, gate]
+text: anon
+include_thought: false
+columns: null            # the factory reads only the content fields (models.baselines.CONTENT_FIELDS)
+uses_position: false
+evaluation: cv
+model:
+  factory: agentdrift.models.baselines:style_stats
+  params: {}
+threshold_source: inner_oof
+target_fpr: [0.01, 0.002]
+bootstrap: {n_resamples: 2000, seed: 42}
+seed: 42

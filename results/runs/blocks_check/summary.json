@@ -1,0 +1,32 @@
+{
+  "tool_risk_status": "draft",
+  "blocks": {
+    "scanner/StructureBlock": {
+      "columns": 418,
+      "seconds": 0.7,
+      "nonzero_share": 0.0144
+    },
+    "scanner/InjectionCuesBlock": {
+      "columns": 9,
+      "seconds": 0.4,
+      "nonzero_share": 0.1506
+    },
+    "gate/StructureBlock": {
+      "columns": 418,
+      "seconds": 0.9,
+      "nonzero_share": 0.0139
+    },
+    "gate/InjectionCuesBlock": {
+      "columns": 9,
+      "seconds": 0.5,
+      "nonzero_share": 0.124
+    },
+    "gate/ProvenanceBlock": {
+      "columns": 41,
+      "seconds": 1.0,
+      "nonzero_share": 0.0868
+    }
+  },
+  "scanner_unknown_tools": [],
+  "gate_unknown_tools": []
+}

@@ -1,0 +1,18 @@
+# v0.0 — keyword rule (KAN-20): share of generic prompt-injection phrases found in the content fields, fixed a priori,
+# nothing fitted. NOT the AgentDrift paper's surface baseline (its six features are not published).
+version: v0_0_keyword
+kind: trivial
+description: Count of generic injection phrases (models.baselines.INJECTION_PHRASES) in the content fields; no fitting.
+views: [scanner, gate]
+text: anon
+include_thought: false
+columns: null
+uses_position: false
+evaluation: cv
+model:
+  factory: agentdrift.models.baselines:keyword_rule
+  params: {}
+threshold_source: train  # nothing is fitted: in-sample and out-of-fold scores are the same
+target_fpr: [0.01, 0.002]
+bootstrap: {n_resamples: 2000, seed: 42}
+seed: 42

@@ -1,0 +1,26 @@
+# v0.2 — AutoML (Step 2.5, KAN-21): preparation, feature blocks and TF-IDF configuration, chi2 selection, 6 model
+# families and their hyperparameters, searched by Optuna (TPE, fixed seed) on the inner splits of each outer split
+# (nested CV), objective = mean inner PR-AUC. Best pipeline refitted, Platt-calibrated on its inner out-of-fold
+# scores, thresholds from those scores. Search space and justification: src/agentdrift/models/automl.py.
+version: v0_2_automl
+kind: model
+description: Nested Optuna search over blocks, TF-IDF, chi2 selection and 6 families (LR, linear SVM, NB, tree, forest, kNN); best refitted and Platt-calibrated.
+views: [scanner, gate]
+text: anon
+include_thought: false
+columns: null
+uses_position: false
+evaluation: cv
+model:
+  factory: agentdrift.models.automl:automl
+  params:
+    n_trials: 50          # fixed: the search is reproducible (~2-4 min per outer split, JOURNAL 26/11)
+    timeout: 1200         # ACTIVE compute seconds per outer split (perf_counter, not wall clock), safety cap only
+    seed: 42
+    families: [logreg, linear_svm, complement_nb, decision_tree, forest, knn]
+    allow_char: false     # character TF-IDF is 5x slower: left out of v0.2 (budget), a v0.3 candidate
+    pruner_startup: 8
+threshold_source: estimator
+target_fpr: [0.01, 0.002]
+bootstrap: {n_resamples: 2000, seed: 42}
+seed: 42
