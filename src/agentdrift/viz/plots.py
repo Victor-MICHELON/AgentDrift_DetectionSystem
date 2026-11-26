@@ -732,3 +732,54 @@ def plot_h1(runs: pd.DataFrame, order: list[str]) -> plt.Figure:
                                         label="leave one domain out")], y=1.12)
     fig.tight_layout()
     return fig
+
+
+def plot_h3(runs: pd.DataFrame, order: list[str], shortcuts: pd.DataFrame | None = None) -> plt.Figure:
+    """H3 ablation ladder: one column per view. Top: PR-AUC at each rung (one information removed per step to the
+    right), 5 folds by template and leave one domain out, 95 % CI; the style-only shortcut as a dashed line.
+    Bottom: recall at 1 % FPR by attack type (5 folds by template)."""
+    views = [v for v in ("scanner", "gate") if v in set(runs["view"])]
+    labels = [l for l in order if l in set(runs["label"])]
+    x = np.arange(len(labels))
+    fig, axes = plt.subplots(2, len(views), figsize=(7.5, 5.6), sharex=True)
+    axes = np.atleast_2d(axes).reshape(2, len(views))
+    modes = {"cv": (SERIES[0], "5 folds by template"), "lodo": (SERIES[1], "leave one domain out")}
+    types = {"full": SERIES[2], "partial": SERIES[3], "delayed": SERIES[4], "failed": SERIES[6]}
+    for j, view in enumerate(views):
+        d = runs[runs["view"] == view].set_index(["label", "mode"])
+        ax = axes[0, j]
+        for mode, (color, _) in modes.items():
+            pts = [d.loc[(l, mode)] if (l, mode) in d.index else None for l in labels]
+            xs = [xi for xi, p in zip(x, pts) if p is not None]
+            ys = np.array([p["pr_auc"] for p in pts if p is not None])
+            lo = np.array([p["pr_auc_low"] for p in pts if p is not None])
+            hi = np.array([p["pr_auc_high"] for p in pts if p is not None])
+            ax.errorbar(xs, ys, yerr=[ys - lo, hi - ys], fmt="-o", color=color, markersize=4, linewidth=1.5,
+                        elinewidth=1, capsize=2)
+            for xi, yi in zip(xs, ys):
+                ax.text(xi, yi + (0.012 if mode == "cv" else -0.022), f"{yi:.3f}", ha="center", fontsize=7,
+                        color=color)
+        if shortcuts is not None and len(s := shortcuts[(shortcuts["view"] == view)
+                                                        & (shortcuts["version"] == "v0_0_style")]):
+            ax.axhline(float(s["pr_auc"].iloc[0]), color=INK_3, linewidth=1, linestyle=(0, (3, 3)))
+            ax.text(x[-1] + 0.3, float(s["pr_auc"].iloc[0]) + 0.004, "style only", color=INK_3, fontsize=7,
+                    ha="right", va="bottom")
+        ax.set_title(VIEW_TITLES[view], fontsize=9.5)
+        ax.set_ylabel("PR-AUC (95 % CI)" if j == 0 else "")
+        ax.set_ylim(0.80, 1.03)
+        ax.grid(axis="x", visible=False)
+        ax = axes[1, j]
+        for t, color in types.items():
+            col = f"recall_{t}"
+            vals = [d.loc[(l, "cv"), col] if (l, "cv") in d.index and col in d.columns else np.nan for l in labels]
+            if not np.all(np.isnan(np.asarray(vals, dtype=float))):
+                ax.plot(x, vals, "-o", color=color, markersize=4, linewidth=1.5, label=t)
+        ax.set_ylim(0, 1.05)
+        ax.set_ylabel("recall at 1 % FPR (5 folds)" if j == 0 else "")
+        ax.set_xticks(x, labels, rotation=20, ha="right", fontsize=8)
+        ax.grid(axis="x", visible=False)
+    _legend_top(axes[0, 0], [plt.Line2D([], [], marker="o", color=c, label=l) for c, l in modes.values()], y=1.12)
+    _legend_top(axes[1, 0], [plt.Line2D([], [], marker="o", color=c, label=t) for t, c in types.items()], ncol=4,
+                y=1.0)
+    fig.tight_layout()
+    return fig

@@ -20,7 +20,7 @@
 | **3** | **Blocs structure, nom d'outil, provenance, indices d'injection** | KAN-18 (B.3) | ✅ fait (26/11), sans l'option cohérence |
 | **4** | **Test de H1** (texte / structure / les deux, CV et domaine exclu) | KAN-62 (B.7) | ✅ fait (26/11) : H1 non soutenue |
 | **5** | **AutoML v0.2** (CV imbriquée, Optuna) | KAN-21 (B.6) | ✅ fait (26/11) |
-| **6** | **Test de H3** (échelle d'ablation) | KAN-19 (B.4) | à faire |
+| **6** | **Test de H3** (échelle d'ablation) | KAN-19 (B.4) | ✅ fait (26/11) : H3 soutenue pour `thought` seulement, pas pour le masquage ; v0.2 non rejouée |
 | ∥ | Sections B du rapport, gouvernance, `CONTRIBUTIONS.md` | KAN-41, KAN-49 | au fil de l'eau |
 
 **Ordre :** 0 → 1 → 2 → 3 → 4 → 5 → 6, tel que fixé dans KAN-5. Deux exceptions :
@@ -313,6 +313,12 @@ Le masquage seul ne bouge pas v0.1 (mesure du 25/11). Deux ablations s'ajoutent 
 - repères des raccourcis (position seule).
 
 **Livrables :** `results/runs/h3/` (tableau, figure de l'échelle), conclusion prudente dans le JOURNAL, chaîne prête à être rejouée sur ATBench par D.6 (KAN-33).
+
+**Fait le 26/11** (`python -m agentdrift.pipelines.run_h3`, modèle v0.1, CV et domaine exclu, sonde du type d'attaque, portail « action seule » aux marches brut / anonymisé / masqué) :
+- retirer `thought` : portail −0,022 en CV, −0,052 en domaine exclu (PR-AUC) ;
+- anonymiser le monde, puis masquer les artefacts : écart nul pour le scanner, −0,001 à −0,003 pour le portail ;
+- la sonde du type d'attaque reste à 0,95 après masquage ;
+- non fait : la rejouer avec v0.2 (même commande, autre config), et le test ATBench (D.6).
 
 ---
 
