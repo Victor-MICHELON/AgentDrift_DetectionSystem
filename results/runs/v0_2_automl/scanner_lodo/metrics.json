@@ -1,0 +1,894 @@
+{
+  "version": "v0_2_automl",
+  "kind": "model",
+  "description": "Nested Optuna search over blocks, TF-IDF, chi2 selection and 6 families (LR, linear SVM, NB, tree, forest, kNN); best refitted and Platt-calibrated.",
+  "view": "scanner",
+  "evaluation": "lodo",
+  "seed": 42,
+  "data": {
+    "text": "anon",
+    "include_thought": false,
+    "columns": [
+      "task",
+      "history_text",
+      "content_source_tool",
+      "content_source_args",
+      "current_content"
+    ],
+    "rows": 50414,
+    "positives": 6043,
+    "prevalence": 0.119867,
+    "templates": 215,
+    "folds_hash": "f69d2d09f08332a9",
+    "folds_hash_lf": "f69d2d09f08332a9",
+    "tool_risk_status": "draft"
+  },
+  "config": {
+    "version": "v0_2_automl",
+    "model": {
+      "factory": "agentdrift.models.automl:automl",
+      "params": {
+        "n_trials": 50,
+        "timeout": 1200,
+        "seed": 42,
+        "families": [
+          "logreg",
+          "linear_svm",
+          "complement_nb",
+          "decision_tree",
+          "forest",
+          "knn"
+        ],
+        "allow_char": false,
+        "pruner_startup": 8
+      }
+    },
+    "kind": "model",
+    "description": "Nested Optuna search over blocks, TF-IDF, chi2 selection and 6 families (LR, linear SVM, NB, tree, forest, kNN); best refitted and Platt-calibrated.",
+    "views": [
+      "scanner",
+      "gate"
+    ],
+    "text": "anon",
+    "include_thought": false,
+    "columns": null,
+    "uses_position": false,
+    "evaluation": "lodo",
+    "threshold_source": "estimator",
+    "target_fpr": [
+      0.01,
+      0.002
+    ],
+    "bootstrap": {
+      "n_resamples": 2000,
+      "seed": 42
+    },
+    "seed": 42,
+    "train_fraction": 1.0
+  },
+  "folds": [
+    {
+      "split": "banking",
+      "n_train": 42324,
+      "n_eval": 8090,
+      "positives_eval": 872,
+      "templates_eval": 43,
+      "templates_train": 172,
+      "roc_auc": 0.97807,
+      "pr_auc": 0.925824,
+      "prevalence": 0.107787,
+      "recall@fpr0.01": 0.74656,
+      "fpr@fpr0.01": 0.002078,
+      "recall@fpr0.002": 0.641055,
+      "fpr@fpr0.002": 0.000277,
+      "brier": 0.025812,
+      "ece": 0.024604,
+      "train_roc_auc": 0.999727,
+      "train_pr_auc": 0.997898,
+      "gap_pr_auc": 0.072074,
+      "thresholds": {
+        "fpr0.01": 0.37059,
+        "fpr0.002": 0.835696
+      },
+      "reference_fpr": {
+        "fpr0.01": 0.009986,
+        "fpr0.002": 0.001992
+      },
+      "selected": {
+        "family": "logreg",
+        "blocks": "text_struct_cues",
+        "text": "word12_min2",
+        "params": {
+          "family": "logreg",
+          "blocks": "text_struct_cues",
+          "text": "word12_min2",
+          "select": "20000",
+          "lr_C": 1.91057
+        },
+        "inner_pr_auc": 0.976973,
+        "trials": {
+          "requested": 50,
+          "complete": 29,
+          "pruned": 21,
+          "failed": 0
+        },
+        "timeout_hit": false,
+        "search_seconds": 183.4,
+        "slowest_trials": [
+          {
+            "number": 1,
+            "family": "forest",
+            "seconds": 21.62
+          },
+          {
+            "number": 2,
+            "family": "knn",
+            "seconds": 10.23
+          },
+          {
+            "number": 7,
+            "family": "complement_nb",
+            "seconds": 9.5
+          }
+        ],
+        "best_by_family": {
+          "linear_svm": {
+            "inner_pr_auc": 0.976955,
+            "params": {
+              "family": "linear_svm",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "select": "20000",
+              "svm_C": 0.354882
+            }
+          },
+          "forest": {
+            "inner_pr_auc": 0.911746,
+            "params": {
+              "family": "forest",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "svd": 64,
+              "forest_kind": "random_forest",
+              "forest_trees": 300,
+              "forest_depth": 30,
+              "forest_leaf": 10,
+              "forest_max_features": "sqrt"
+            }
+          },
+          "knn": {
+            "inner_pr_auc": 0.783723,
+            "params": {
+              "family": "knn",
+              "blocks": "text_cues",
+              "text": "word12_min5",
+              "svd": 64,
+              "knn_k": 83,
+              "knn_weights": "uniform"
+            }
+          },
+          "logreg": {
+            "inner_pr_auc": 0.976973,
+            "params": {
+              "family": "logreg",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "select": "20000",
+              "lr_C": 1.91057
+            }
+          },
+          "complement_nb": {
+            "inner_pr_auc": 0.934223,
+            "params": {
+              "family": "complement_nb",
+              "blocks": "text_cues",
+              "text": "word12_min2",
+              "select": "50000",
+              "nb_alpha": 0.641687
+            }
+          }
+        }
+      },
+      "seconds": 187.13
+    },
+    {
+      "split": "coding",
+      "n_train": 40041,
+      "n_eval": 10373,
+      "positives_eval": 1272,
+      "templates_eval": 43,
+      "templates_train": 172,
+      "roc_auc": 0.968842,
+      "pr_auc": 0.891371,
+      "prevalence": 0.122626,
+      "recall@fpr0.01": 0.801887,
+      "fpr@fpr0.01": 0.030766,
+      "recall@fpr0.002": 0.746855,
+      "fpr@fpr0.002": 0.013185,
+      "brier": 0.038803,
+      "ece": 0.020865,
+      "train_roc_auc": 0.999932,
+      "train_pr_auc": 0.999471,
+      "gap_pr_auc": 0.1081,
+      "thresholds": {
+        "fpr0.01": 0.360585,
+        "fpr0.002": 0.799848
+      },
+      "reference_fpr": {
+        "fpr0.01": 0.00998,
+        "fpr0.002": 0.001985
+      },
+      "selected": {
+        "family": "logreg",
+        "blocks": "text_struct_cues",
+        "text": "word12_min5",
+        "params": {
+          "family": "logreg",
+          "blocks": "text_struct_cues",
+          "text": "word12_min5",
+          "select": "20000",
+          "lr_C": 4.705878
+        },
+        "inner_pr_auc": 0.977101,
+        "trials": {
+          "requested": 50,
+          "complete": 25,
+          "pruned": 25,
+          "failed": 0
+        },
+        "timeout_hit": false,
+        "search_seconds": 166.5,
+        "slowest_trials": [
+          {
+            "number": 1,
+            "family": "forest",
+            "seconds": 20.19
+          },
+          {
+            "number": 2,
+            "family": "knn",
+            "seconds": 9.65
+          },
+          {
+            "number": 7,
+            "family": "complement_nb",
+            "seconds": 8.77
+          }
+        ],
+        "best_by_family": {
+          "linear_svm": {
+            "inner_pr_auc": 0.973435,
+            "params": {
+              "family": "linear_svm",
+              "blocks": "text_struct_cues",
+              "text": "word1_min2",
+              "select": "20000",
+              "svm_C": 0.143095
+            }
+          },
+          "forest": {
+            "inner_pr_auc": 0.897266,
+            "params": {
+              "family": "forest",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "svd": 64,
+              "forest_kind": "random_forest",
+              "forest_trees": 300,
+              "forest_depth": 30,
+              "forest_leaf": 10,
+              "forest_max_features": "sqrt"
+            }
+          },
+          "knn": {
+            "inner_pr_auc": 0.765941,
+            "params": {
+              "family": "knn",
+              "blocks": "text_cues",
+              "text": "word12_min5",
+              "svd": 64,
+              "knn_k": 83,
+              "knn_weights": "uniform"
+            }
+          },
+          "logreg": {
+            "inner_pr_auc": 0.977101,
+            "params": {
+              "family": "logreg",
+              "blocks": "text_struct_cues",
+              "text": "word12_min5",
+              "select": "20000",
+              "lr_C": 4.705878
+            }
+          },
+          "complement_nb": {
+            "inner_pr_auc": 0.92574,
+            "params": {
+              "family": "complement_nb",
+              "blocks": "text_cues",
+              "text": "word12_min2",
+              "select": "50000",
+              "nb_alpha": 0.641687
+            }
+          }
+        }
+      },
+      "seconds": 170.15
+    },
+    {
+      "split": "email",
+      "n_train": 39697,
+      "n_eval": 10717,
+      "positives_eval": 1308,
+      "templates_eval": 43,
+      "templates_train": 172,
+      "roc_auc": 0.99261,
+      "pr_auc": 0.96203,
+      "prevalence": 0.122049,
+      "recall@fpr0.01": 0.884557,
+      "fpr@fpr0.01": 0.005527,
+      "recall@fpr0.002": 0.774465,
+      "fpr@fpr0.002": 0.002444,
+      "brier": 0.016374,
+      "ece": 0.007673,
+      "train_roc_auc": 0.999874,
+      "train_pr_auc": 0.999027,
+      "gap_pr_auc": 0.036997,
+      "thresholds": {
+        "fpr0.01": 0.422007,
+        "fpr0.002": 0.84309
+      },
+      "reference_fpr": {
+        "fpr0.01": 0.009982,
+        "fpr0.002": 0.001974
+      },
+      "selected": {
+        "family": "logreg",
+        "blocks": "text_struct_cues",
+        "text": "word1_min2",
+        "params": {
+          "family": "logreg",
+          "blocks": "text_struct_cues",
+          "text": "word1_min2",
+          "select": "20000",
+          "lr_C": 3.397853
+        },
+        "inner_pr_auc": 0.968168,
+        "trials": {
+          "requested": 50,
+          "complete": 23,
+          "pruned": 27,
+          "failed": 0
+        },
+        "timeout_hit": false,
+        "search_seconds": 157.8,
+        "slowest_trials": [
+          {
+            "number": 1,
+            "family": "forest",
+            "seconds": 20.34
+          },
+          {
+            "number": 2,
+            "family": "knn",
+            "seconds": 9.93
+          },
+          {
+            "number": 7,
+            "family": "complement_nb",
+            "seconds": 9.11
+          }
+        ],
+        "best_by_family": {
+          "linear_svm": {
+            "inner_pr_auc": 0.967095,
+            "params": {
+              "family": "linear_svm",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "select": "20000",
+              "svm_C": 0.387412
+            }
+          },
+          "forest": {
+            "inner_pr_auc": 0.87734,
+            "params": {
+              "family": "forest",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "svd": 64,
+              "forest_kind": "random_forest",
+              "forest_trees": 300,
+              "forest_depth": 30,
+              "forest_leaf": 10,
+              "forest_max_features": "sqrt"
+            }
+          },
+          "knn": {
+            "inner_pr_auc": 0.753836,
+            "params": {
+              "family": "knn",
+              "blocks": "text_cues",
+              "text": "word12_min5",
+              "svd": 64,
+              "knn_k": 83,
+              "knn_weights": "uniform"
+            }
+          },
+          "logreg": {
+            "inner_pr_auc": 0.968168,
+            "params": {
+              "family": "logreg",
+              "blocks": "text_struct_cues",
+              "text": "word1_min2",
+              "select": "20000",
+              "lr_C": 3.397853
+            }
+          },
+          "complement_nb": {
+            "inner_pr_auc": 0.920469,
+            "params": {
+              "family": "complement_nb",
+              "blocks": "text_cues",
+              "text": "word12_min2",
+              "select": "50000",
+              "nb_alpha": 0.641687
+            }
+          }
+        }
+      },
+      "seconds": 160.59
+    },
+    {
+      "split": "medical",
+      "n_train": 39960,
+      "n_eval": 10454,
+      "positives_eval": 1281,
+      "templates_eval": 43,
+      "templates_train": 172,
+      "roc_auc": 0.983095,
+      "pr_auc": 0.941245,
+      "prevalence": 0.122537,
+      "recall@fpr0.01": 0.875878,
+      "fpr@fpr0.01": 0.018424,
+      "recall@fpr0.002": 0.786105,
+      "fpr@fpr0.002": 0.000872,
+      "brier": 0.021961,
+      "ece": 0.013728,
+      "train_roc_auc": 0.999738,
+      "train_pr_auc": 0.997984,
+      "gap_pr_auc": 0.056739,
+      "thresholds": {
+        "fpr0.01": 0.362287,
+        "fpr0.002": 0.824454
+      },
+      "reference_fpr": {
+        "fpr0.01": 0.009972,
+        "fpr0.002": 0.001989
+      },
+      "selected": {
+        "family": "logreg",
+        "blocks": "text_struct_cues",
+        "text": "word12_min2",
+        "params": {
+          "family": "logreg",
+          "blocks": "text_struct_cues",
+          "text": "word12_min2",
+          "select": "20000",
+          "lr_C": 1.91057
+        },
+        "inner_pr_auc": 0.974275,
+        "trials": {
+          "requested": 50,
+          "complete": 30,
+          "pruned": 20,
+          "failed": 0
+        },
+        "timeout_hit": false,
+        "search_seconds": 180.2,
+        "slowest_trials": [
+          {
+            "number": 1,
+            "family": "forest",
+            "seconds": 21.12
+          },
+          {
+            "number": 2,
+            "family": "knn",
+            "seconds": 10.13
+          },
+          {
+            "number": 7,
+            "family": "complement_nb",
+            "seconds": 9.2
+          }
+        ],
+        "best_by_family": {
+          "linear_svm": {
+            "inner_pr_auc": 0.973721,
+            "params": {
+              "family": "linear_svm",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "select": "20000",
+              "svm_C": 0.352524
+            }
+          },
+          "forest": {
+            "inner_pr_auc": 0.890012,
+            "params": {
+              "family": "forest",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "svd": 64,
+              "forest_kind": "random_forest",
+              "forest_trees": 300,
+              "forest_depth": 30,
+              "forest_leaf": 10,
+              "forest_max_features": "sqrt"
+            }
+          },
+          "knn": {
+            "inner_pr_auc": 0.781972,
+            "params": {
+              "family": "knn",
+              "blocks": "text_cues",
+              "text": "word12_min5",
+              "svd": 64,
+              "knn_k": 83,
+              "knn_weights": "uniform"
+            }
+          },
+          "logreg": {
+            "inner_pr_auc": 0.974275,
+            "params": {
+              "family": "logreg",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "select": "20000",
+              "lr_C": 1.91057
+            }
+          },
+          "complement_nb": {
+            "inner_pr_auc": 0.927133,
+            "params": {
+              "family": "complement_nb",
+              "blocks": "text_cues",
+              "text": "word12_min2",
+              "select": "50000",
+              "nb_alpha": 0.641687
+            }
+          }
+        }
+      },
+      "seconds": 183.98
+    },
+    {
+      "split": "web",
+      "n_train": 39634,
+      "n_eval": 10780,
+      "positives_eval": 1310,
+      "templates_eval": 43,
+      "templates_train": 172,
+      "roc_auc": 0.974055,
+      "pr_auc": 0.900102,
+      "prevalence": 0.121521,
+      "recall@fpr0.01": 0.848855,
+      "fpr@fpr0.01": 0.04245,
+      "recall@fpr0.002": 0.79771,
+      "fpr@fpr0.002": 0.017635,
+      "brier": 0.038455,
+      "ece": 0.030218,
+      "train_roc_auc": 0.999993,
+      "train_pr_auc": 0.999942,
+      "gap_pr_auc": 0.09984,
+      "thresholds": {
+        "fpr0.01": 0.378449,
+        "fpr0.002": 0.783995
+      },
+      "reference_fpr": {
+        "fpr0.01": 0.01,
+        "fpr0.002": 0.001977
+      },
+      "selected": {
+        "family": "linear_svm",
+        "blocks": "text_struct_cues",
+        "text": "word12_min5",
+        "params": {
+          "family": "linear_svm",
+          "blocks": "text_struct_cues",
+          "text": "word12_min5",
+          "select": "none",
+          "svm_C": 0.337032
+        },
+        "inner_pr_auc": 0.977432,
+        "trials": {
+          "requested": 50,
+          "complete": 31,
+          "pruned": 19,
+          "failed": 0
+        },
+        "timeout_hit": false,
+        "search_seconds": 189.8,
+        "slowest_trials": [
+          {
+            "number": 1,
+            "family": "forest",
+            "seconds": 21.55
+          },
+          {
+            "number": 2,
+            "family": "knn",
+            "seconds": 10.39
+          },
+          {
+            "number": 7,
+            "family": "complement_nb",
+            "seconds": 9.36
+          }
+        ],
+        "best_by_family": {
+          "linear_svm": {
+            "inner_pr_auc": 0.977432,
+            "params": {
+              "family": "linear_svm",
+              "blocks": "text_struct_cues",
+              "text": "word12_min5",
+              "select": "none",
+              "svm_C": 0.337032
+            }
+          },
+          "forest": {
+            "inner_pr_auc": 0.885009,
+            "params": {
+              "family": "forest",
+              "blocks": "text_struct_cues",
+              "text": "word12_min2",
+              "svd": 64,
+              "forest_kind": "random_forest",
+              "forest_trees": 300,
+              "forest_depth": 30,
+              "forest_leaf": 10,
+              "forest_max_features": "sqrt"
+            }
+          },
+          "knn": {
+            "inner_pr_auc": 0.754773,
+            "params": {
+              "family": "knn",
+              "blocks": "text_cues",
+              "text": "word12_min5",
+              "svd": 64,
+              "knn_k": 83,
+              "knn_weights": "uniform"
+            }
+          },
+          "logreg": {
+            "inner_pr_auc": 0.977405,
+            "params": {
+              "family": "logreg",
+              "blocks": "text_struct_cues",
+              "text": "word12_min5",
+              "select": "none",
+              "lr_C": 66.283812
+            }
+          },
+          "complement_nb": {
+            "inner_pr_auc": 0.925781,
+            "params": {
+              "family": "complement_nb",
+              "blocks": "text_cues",
+              "text": "word12_min2",
+              "select": "50000",
+              "nb_alpha": 0.641687
+            }
+          }
+        }
+      },
+      "seconds": 193.61
+    }
+  ],
+  "fold_summary": {
+    "roc_auc": {
+      "mean": 0.979334,
+      "std": 0.009082
+    },
+    "pr_auc": {
+      "mean": 0.924114,
+      "std": 0.029081
+    },
+    "recall@fpr0.01": {
+      "mean": 0.831547,
+      "std": 0.057396
+    },
+    "fpr@fpr0.01": {
+      "mean": 0.019849,
+      "std": 0.016977
+    },
+    "recall@fpr0.002": {
+      "mean": 0.749238,
+      "std": 0.063353
+    },
+    "fpr@fpr0.002": {
+      "mean": 0.006883,
+      "std": 0.007981
+    },
+    "train_pr_auc": {
+      "mean": 0.998864,
+      "std": 0.000903
+    },
+    "gap_pr_auc": {
+      "mean": 0.07475,
+      "std": 0.029575
+    },
+    "brier": {
+      "mean": 0.028281,
+      "std": 0.010026
+    },
+    "ece": {
+      "mean": 0.019417,
+      "std": 0.008887
+    }
+  },
+  "estimate": {
+    "roc_auc": {
+      "point": 0.979334,
+      "low": 0.975823,
+      "high": 0.982573,
+      "nan_resamples": 0
+    },
+    "pr_auc": {
+      "point": 0.924114,
+      "low": 0.914129,
+      "high": 0.934102,
+      "nan_resamples": 0
+    },
+    "prevalence": {
+      "point": 0.119304,
+      "low": 0.11715,
+      "high": 0.121621,
+      "nan_resamples": 0
+    },
+    "recall@fpr0.01": {
+      "point": 0.831547,
+      "low": 0.818033,
+      "high": 0.844633,
+      "nan_resamples": 0
+    },
+    "fpr@fpr0.01": {
+      "point": 0.019849,
+      "low": 0.015128,
+      "high": 0.025273,
+      "nan_resamples": 0
+    },
+    "recall@fpr0.002": {
+      "point": 0.749238,
+      "low": 0.732139,
+      "high": 0.765289,
+      "nan_resamples": 0
+    },
+    "fpr@fpr0.002": {
+      "point": 0.006883,
+      "low": 0.00417,
+      "high": 0.01015,
+      "nan_resamples": 0
+    }
+  },
+  "pooled_oof": {
+    "roc_auc": 0.977495,
+    "pr_auc": 0.916422,
+    "prevalence": 0.119867,
+    "recall@fpr0.01": 0.837663,
+    "fpr@fpr0.01": 0.020689,
+    "recall@fpr0.002": 0.756909,
+    "fpr@fpr0.002": 0.007212
+  },
+  "subgroups": {
+    "fpr0.01": {
+      "recall_by_attack_type": {
+        "attacked_delayed": {
+          "recall": 0.492976,
+          "n_positive": 783.0
+        },
+        "attacked_full": {
+          "recall": 0.964631,
+          "n_positive": 2686.0
+        },
+        "attacked_partial": {
+          "recall": 0.639319,
+          "n_positive": 1292.0
+        },
+        "failed_attack": {
+          "recall": 0.982059,
+          "n_positive": 1282.0
+        }
+      },
+      "alert_rate_by_class_of_negatives": {
+        "attacked_delayed": {
+          "alert_rate": 0.01399,
+          "n_negative": 3145.0
+        },
+        "attacked_full": {
+          "alert_rate": 0.020485,
+          "n_negative": 10935.0
+        },
+        "attacked_partial": {
+          "alert_rate": 0.010153,
+          "n_negative": 4629.0
+        },
+        "benign": {
+          "alert_rate": 0.026545,
+          "n_negative": 15408.0
+        },
+        "failed_attack": {
+          "alert_rate": 0.010029,
+          "n_negative": 4487.0
+        },
+        "hard_negative": {
+          "alert_rate": 0.025837,
+          "n_negative": 5767.0
+        }
+      }
+    },
+    "fpr0.002": {
+      "recall_by_attack_type": {
+        "attacked_delayed": {
+          "recall": 0.283525,
+          "n_positive": 783.0
+        },
+        "attacked_full": {
+          "recall": 0.922561,
+          "n_positive": 2686.0
+        },
+        "attacked_partial": {
+          "recall": 0.491486,
+          "n_positive": 1292.0
+        },
+        "failed_attack": {
+          "recall": 0.966459,
+          "n_positive": 1282.0
+        }
+      },
+      "alert_rate_by_class_of_negatives": {
+        "attacked_delayed": {
+          "alert_rate": 0.005723,
+          "n_negative": 3145.0
+        },
+        "attacked_full": {
+          "alert_rate": 0.006584,
+          "n_negative": 10935.0
+        },
+        "attacked_partial": {
+          "alert_rate": 0.004321,
+          "n_negative": 4629.0
+        },
+        "benign": {
+          "alert_rate": 0.009021,
+          "n_negative": 15408.0
+        },
+        "failed_attack": {
+          "alert_rate": 0.002674,
+          "n_negative": 4487.0
+        },
+        "hard_negative": {
+          "alert_rate": 0.010231,
+          "n_negative": 5767.0
+        }
+      }
+    }
+  },
+  "run": {
+    "date": "2026-11-26T01:53:29+00:00",
+    "git": "8364401-dirty",
+    "python": "3.12.14",
+    "libraries": {
+      "numpy": "2.5.5",
+      "pandas": "3.1.1",
+      "scipy": "1.18.1",
+      "sklearn": "1.9.1",
+      "imblearn": "0.14.2",
+      "optuna": "5.1.0"
+    },
+    "seconds": 896.9
+  }
+}

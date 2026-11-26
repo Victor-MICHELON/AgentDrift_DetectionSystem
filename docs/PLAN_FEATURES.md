@@ -19,7 +19,7 @@
 | **2** | **Baselines v0.0 (repères, raccourcis) et v0.1 (TF-IDF + LR calibrée)** | KAN-20 (B.5) | ✅ fait (26/11), hors sections du rapport |
 | **3** | **Blocs structure, nom d'outil, provenance, indices d'injection** | KAN-18 (B.3) | ✅ fait (26/11), sans l'option cohérence |
 | **4** | **Test de H1** (texte / structure / les deux, CV et domaine exclu) | KAN-62 (B.7) | ✅ fait (26/11) : H1 non soutenue |
-| **5** | **AutoML v0.2** (CV imbriquée, Optuna) | KAN-21 (B.6) | à faire |
+| **5** | **AutoML v0.2** (CV imbriquée, Optuna) | KAN-21 (B.6) | ✅ fait (26/11) |
 | **6** | **Test de H3** (échelle d'ablation) | KAN-19 (B.4) | à faire |
 | ∥ | Sections B du rapport, gouvernance, `CONTRIBUTIONS.md` | KAN-41, KAN-49 | au fil de l'eau |
 
@@ -248,7 +248,9 @@ Même estimateur pour toutes les variantes (la régression logistique de v0.1, m
 
 **Livrables :** `results/runs/h1/` (tableau variante × protocole × vue, figure), conclusion « soutenue / non soutenue / non tranchée » dans le JOURNAL.
 
-## Étape 5 — AutoML v0.2 (KAN-21, B.6)
+## Étape 5 — AutoML v0.2 (KAN-21, B.6) ✅ fait le 26/11
+
+Implémenté : `models/automl.py` (6 familles, blocs, TF-IDF, chi², Optuna TPE 50 essais, élagage, cache privé par pli, budget en temps actif), `pipelines/run_automl.py`, config `v0_2_automl.yaml`, 14 tests. Résultats et **limites de v0.2** : JOURNAL 26/11 (famille linéaire partout ; +0,01 de PR-AUC en CV ; hors domaine, gain sur le portail seulement, retardées 0,175 → 0,329 ; critère de sélection intra-distribution). Incident : budget compté en heure murale pendant la veille de la machine, corrigé (temps actif) et run relancé sous `caffeinate`.
 
 Fichiers `models/automl.py`, `pipelines/run_automl.py`, `configs/models/v0_2_automl.yaml`.
 
